@@ -1,0 +1,291 @@
+name: Rezvan Mesh CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+  ANDROID_AVD_HOME: /home/runner/.android/avd
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Build and test Rust crates
+  # --------------------------------------------------------------------------
+  build-rust:
+    name: Build Rust Crates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Run rustfmt check
+        working-directory: rust
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests
+        working-directory: rust
+        run: cargo test --all
+
+      - name: Build release
+        working-directory: rust
+        run: cargo build --release
+
+  # --------------------------------------------------------------------------
+  # Verify JNI interface consistency between Rust and Kotlin
+  # --------------------------------------------------------------------------
+  interface-check:
+    name: Interface Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run interface verification script
+        run: python3 scripts/verify_interfaces.py
+
+  # --------------------------------------------------------------------------
+  # Build Android APK
+  # --------------------------------------------------------------------------
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: [build-rust, interface-check]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Add Android Rust targets
+        run: |
+          rustup target add aarch64-linux-android
+          rustup target add armv7-linux-androideabi
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease
+        env:
+          KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: android/app/build/outputs/apk/release/rezvan-mesh-release.apk
+
+  # --------------------------------------------------------------------------
+  # Integration tests on Android emulator
+  # --------------------------------------------------------------------------
+  integration-test:
+    name: Integration Tests
+    runs-on: macos-latest
+    needs: build-apk
+    strategy:
+      matrix:
+        api-level: [30, 34]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: ${{ matrix.api-level }}
+          build-tools: 34.0.0
+          target: google_apis
+          arch: x86_64
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-debug
+          path: apk/
+
+      - name: Create AVDs for mesh testing
+        run: |
+          echo "Creating AVDs..."
+          for i in 1 2 3; do
+            echo no | avdmanager create avd -n "RezvanMesh_$i" -k "system-images;android-${{ matrix.api-level }};google_apis;x86_64" --force
+          done
+
+      - name: Launch emulators
+        run: |
+          echo "Starting emulators..."
+          for i in 1 2 3; do
+            $ANDROID_SDK_ROOT/emulator/emulator -avd "RezvanMesh_$i" -no-window -no-audio -no-snapshot &
+            sleep 5
+          done
+          adb wait-for-device
+          sleep 30
+
+      - name: Run integration tests
+        run: |
+          python3 scripts/run_integration_test.py \
+            --avds RezvanMesh_1 RezvanMesh_2 RezvanMesh_3 \
+            --apk apk/app-debug.apk \
+            --skip-install
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-logs-${{ matrix.api-level }}
+          path: |
+            integration-tests/logs/
+            ~/.android/avd/*.log
+
+  # --------------------------------------------------------------------------
+  # Lint and static analysis
+  # --------------------------------------------------------------------------
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-lint-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Run Android lint
+        run: ./gradlew lint
+
+      - name: Run detekt (if configured)
+        run: ./gradlew detekt || true
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: android/app/build/reports/lint-results*.html
+
+  # --------------------------------------------------------------------------
+  # Release build for tags
+  # --------------------------------------------------------------------------
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-apk, integration-test]
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release
+          path: .
+
+      - name: Generate checksums
+        run: |
+          sha256sum rezvan-mesh-release.apk > rezvan-mesh-release.apk.sha256
+          md5sum rezvan-mesh-release.apk > rezvan-mesh-release.apk.md5
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            rezvan-mesh-release.apk
+            rezvan-mesh-release.apk.sha256
+            rezvan-mesh-release.apk.md5
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
