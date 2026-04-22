@@ -1,1 +1,147 @@
 
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name"> رضوان اتصال</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">به اتصال رضوان خوش آمدید</string>
+    <string name="onboarding_welcome_message">ارتباط مش بدون اینترنت.\nبدون سیم‌کارت. فقط مقاوم.</string>
+    <string name="offline_mesh_title">📡 مش کاملاً آفلاین</string>
+    <string name="offline_mesh_description">با دستگاه‌های نزدیک از طریق بلوتوث و وای‌فای دایرکت بدون نیاز به دکل مخابراتی ارتباط برقرار کنید.</string>
+    <string name="generate_identity_title">ایجاد هویت</string>
+    <string name="generate_identity_message">یک جفت‌کلید امن برای شناسایی شما در شبکه مش تولید می‌شود.</string>
+    <string name="restore_identity_title">بازیابی هویت</string>
+    <string name="restore_identity_message">عبارت بازیابی ۱۲ کلمه‌ای خود را برای بازیابی هویت موجود وارد کنید.</string>
+    <string name="restore_identity_instructions">عبارت ۱۲ کلمه‌ای خود را تایپ یا جای‌گذاری کنید.</string>
+    <string name="restore_warning">این کار هر هویت موجود روی این دستگاه را جایگزین خواهد کرد.</string>
+    <string name="backup_identity_title">پشتیبان‌گیری از عبارت بازیابی</string>
+    <string name="backup_identity_warning">⚠️ این ۱۲ کلمه را به ترتیب یادداشت کرده و در جای امن نگهداری کنید. بدون آن‌ها در صورت گم شدن دستگاه نمی‌توانید هویت خود را بازیابی کنید.</string>
+    <string name="backup_instructions">هر کسی که این عبارت را داشته باشد می‌تواند به جای شما در شبکه مش فعالیت کند.</string>
+    <string name="i_have_saved_my_recovery_phrase">عبارت بازیابی را ذخیره کرده‌ام</string>
+    <string name="get_started">شروع</string>
+    <string name="generate">ایجاد</string>
+    <string name="restore">بازیابی</string>
+    <string name="finish">پایان</string>
+    <string name="please_wait">لطفاً منتظر بمانید…</string>
+    <string name="enter_12_words">۱۲ کلمه بازیابی را وارد کنید</string>
+    <string name="create_new">ایجاد جدید</string>
+
+    <!-- Main Navigation -->
+    <string name="chats">گفتگوها</string>
+    <string name="channels">کانال‌ها</string>
+    <string name="contacts">مخاطبین</string>
+    <string name="settings">تنظیمات</string>
+    <string name="emergency_alert">هشدار اضطراری</string>
+
+    <!-- Chats Screen -->
+    <string name="no_conversations_yet">هنوز گفتگویی وجود ندارد.\nیک پیام جدید شروع کنید یا به کانالی بپیوندید.</string>
+    <string name="start_conversation">شروع گفتگو</string>
+    <string name="new_message">پیام جدید</string>
+    <string name="new_channel">کانال جدید</string>
+    <string name="search_contacts">جستجوی مخاطبین…</string>
+    <string name="no_matching_contacts">مخاطبی یافت نشد</string>
+
+    <!-- Chat Detail -->
+    <string name="type_message">پیام خود را بنویسید…</string>
+    <string name="attach_file">ضمیمه فایل</string>
+    <string name="send">ارسال</string>
+    <string name="no_messages_yet">هنوز پیامی وجود ندارد.\nسلام کنید!</string>
+    <string name="back">بازگشت</string>
+
+    <!-- Channels Screen -->
+    <string name="no_channels_found">هنوز کانالی یافت نشد.</string>
+    <string name="scan_for_channels">اسکن برای یافتن کانال</string>
+    <string name="refresh">بازنشانی</string>
+    <string name="create_channel">ایجاد کانال</string>
+    <string name="public_channel">کانال عمومی</string>
+    <string name="private_channel">کانال خصوصی</string>
+    <string name="private_caps">خصوصی</string>
+    <string name="members_count">%1$d عضو</string>
+    <string name="join_channel">پیوستن به %1$s</string>
+    <string name="enter_channel_password">این کانال خصوصی است. برای پیوستن رمز عبور را وارد کنید.</string>
+    <string name="password">رمز عبور</string>
+    <string name="show_password">نمایش رمز</string>
+    <string name="hide_password">مخفی کردن رمز</string>
+    <string name="join">پیوستن</string>
+
+    <!-- Contacts Screen -->
+    <string name="no_contacts_yet">هنوز مخاطبی وجود ندارد.\nبا یافتن گره‌های نزدیک ظاهر خواهند شد.</string>
+    <string name="add_contact">افزودن مخاطب</string>
+    <string name="scan_qr_code">اسکن کد QR</string>
+    <string name="trust_verified">تأیید شده</string>
+    <string name="trust_known">شناخته شده</string>
+    <string name="trust_blocked">مسدود</string>
+
+    <!-- Emergency Screen -->
+    <string name="emergency_warning_header">⚠️ پخش اضطراری</string>
+    <string name="emergency_instructions">هشدارهای اضطراری بدون توجه به عضویت در کانال به تمام گره‌های نزدیک ارسال می‌شوند. فقط در مواقع ضروری واقعی استفاده کنید.</string>
+    <string name="select_severity">انتخاب سطح هشدار</string>
+    <string name="severity_advisory">اطلاع‌رسانی</string>
+    <string name="severity_watch">پایش</string>
+    <string name="severity_warning">اخطار</string>
+    <string name="severity_critical">بحرانی</string>
+    <string name="severity_emergency">اضطراری</string>
+    <string name="emergency_button">ارسال هشدار اضطراری</string>
+    <string name="emergency_disclaimer">استفاده نادرست از این قابلیت ممکن است اعتماد در شبکه را کاهش دهد.</string>
+    <string name="sending_emergency">در حال ارسال پخش اضطراری…</string>
+    <string name="emergency_sent_success">هشدار اضطراری با موفقیت ارسال شد.</string>
+    <string name="emergency_send_failed">ارسال هشدار ناموفق: %1$s</string>
+    <string name="confirm_emergency">تأیید اضطراری</string>
+    <string name="emergency_confirmation_message">آیا مطمئن هستید که می‌خواهید یک هشدار اضطراری سطح %1$d به تمام گره‌های نزدیک ارسال کنید؟</string>
+    <string name="send_emergency">ارسال هشدار</string>
+
+    <!-- Settings Screen -->
+    <string name="identity">هویت</string>
+    <string name="node_id">شناسه گره</string>
+    <string name="backup_recovery_phrase">پشتیبان‌گیری از عبارت بازیابی</string>
+    <string name="view_or_export">مشاهده یا خروجی عبارت ۱۲ کلمه‌ای</string>
+    <string name="language_region">زبان و منطقه</string>
+    <string name="language">زبان</string>
+    <string name="language_farsi">فارسی</string>
+    <string name="language_english">English</string>
+    <string name="power_battery">باتری و مصرف</string>
+    <string name="power_profile">پروفایل مصرف</string>
+    <string name="reset_to_auto">بازنشانی به خودکار</string>
+    <string name="auto_adaptive">خودکار (تطبیقی)</string>
+    <string name="storage">فضای ذخیره‌سازی</string>
+    <string name="storage_used">فضای مصرف شده</string>
+    <string name="clear_old_messages">پاک کردن پیام‌های قدیمی</string>
+    <string name="clear_messages_description">پیام‌های قدیمی‌تر از ۳۰ روز حذف شوند</string>
+    <string name="clear_messages_confirmation">این کار پیام‌های قدیمی را برای همیشه حذف خواهد کرد. قابل بازگشت نیست.</string>
+    <string name="clear">پاک کردن</string>
+    <string name="about">درباره</string>
+    <string name="app_version">نسخه برنامه</string>
+    <string name="build_info">اطلاعات ساخت</string>
+    <string name="about_rezvan_mesh">درباره مش رضوان</string>
+    <string name="about_description">ارتباطات مش غیرمتمرکز و آفلاین برای جوامع مقاوم.</string>
+    <string name="version_format">نسخه %1$s</string>
+    <string name="open_source_notice">ساخته شده با فناوری‌های متن‌باز.</string>
+    <string name="close">بستن</string>
+
+    <!-- Power States -->
+    <string name="power_emergency">اضطراری</string>
+    <string name="power_active">فعال</string>
+    <string name="power_balanced">متوازن</string>
+    <string name="power_saver">ذخیره انرژی</string>
+    <string name="power_minimal">حداقل</string>
+    <string name="power_hibernation">خواب زمستانی</string>
+    <string name="power_dead">بحرانی</string>
+
+    <!-- Foreground Service -->
+    <string name="mesh_service_title">مش رضوان</string>
+    <string name="mesh_service_running">سرویس مش در حال اجراست</string>
+    <string name="mesh_channel_name">اتصال مش</string>
+    <string name="mesh_channel_description">اتصالات شبکه مش را حفظ می‌کند</string>
+
+    <!-- General -->
+    <string name="cancel">انصراف</string>
+    <string name="confirm">تأیید</string>
+    <string name="continue_text">ادامه</string>
+    <string name="failed">ناموفق</string>
+    <string name="recovery_phrase">عبارت بازیابی</string>
+    <string name="recovery_phrase_warning">هرگز این عبارت را با کسی به اشتراک نگذارید.</string>
+    <string name="restore_identity">بازیابی هویت</string>
+    <string name="select_language">انتخاب زبان</string>
+    <string name="select_power_profile">انتخاب پروفایل مصرف</string>
+</resources>
