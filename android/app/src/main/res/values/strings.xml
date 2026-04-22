@@ -1,1 +1,147 @@
 
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">Rezvan Mesh</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Welcome to Rezvan Mesh</string>
+    <string name="onboarding_welcome_message">Offline mesh communication.\nNo internet. No SIM. Just resilience.</string>
+    <string name="offline_mesh_title">📡 Fully Offline Mesh</string>
+    <string name="offline_mesh_description">Communicate with nearby devices using Bluetooth and WiFi Direct without any cell towers.</string>
+    <string name="generate_identity_title">Create Your Identity</string>
+    <string name="generate_identity_message">A secure keypair will be generated to identify you on the mesh network.</string>
+    <string name="restore_identity_title">Restore Identity</string>
+    <string name="restore_identity_message">Enter your 12‑word recovery phrase to restore an existing identity.</string>
+    <string name="restore_identity_instructions">Type or paste your 12‑word mnemonic phrase.</string>
+    <string name="restore_warning">This will replace any existing identity on this device.</string>
+    <string name="backup_identity_title">Backup Your Recovery Phrase</string>
+    <string name="backup_identity_warning">⚠️ Write down these 12 words in order and keep them safe. Without them, you cannot recover your identity if this device is lost.</string>
+    <string name="backup_instructions">Anyone with this phrase can impersonate you on the mesh.</string>
+    <string name="i_have_saved_my_recovery_phrase">I have saved my recovery phrase</string>
+    <string name="get_started">Get Started</string>
+    <string name="generate">Generate</string>
+    <string name="restore">Restore</string>
+    <string name="finish">Finish</string>
+    <string name="please_wait">Please wait…</string>
+    <string name="enter_12_words">Enter 12 recovery words</string>
+    <string name="create_new">Create New</string>
+
+    <!-- Main Navigation -->
+    <string name="chats">Chats</string>
+    <string name="channels">Channels</string>
+    <string name="contacts">Contacts</string>
+    <string name="settings">Settings</string>
+    <string name="emergency_alert">Emergency Alert</string>
+
+    <!-- Chats Screen -->
+    <string name="no_conversations_yet">No conversations yet.\nStart a new message or join a channel.</string>
+    <string name="start_conversation">Start Conversation</string>
+    <string name="new_message">New Message</string>
+    <string name="new_channel">New Channel</string>
+    <string name="search_contacts">Search contacts…</string>
+    <string name="no_matching_contacts">No matching contacts</string>
+
+    <!-- Chat Detail -->
+    <string name="type_message">Type a message…</string>
+    <string name="attach_file">Attach file</string>
+    <string name="send">Send</string>
+    <string name="no_messages_yet">No messages yet.\nSay hello!</string>
+    <string name="back">Back</string>
+
+    <!-- Channels Screen -->
+    <string name="no_channels_found">No channels discovered yet.</string>
+    <string name="scan_for_channels">Scan for Channels</string>
+    <string name="refresh">Refresh</string>
+    <string name="create_channel">Create Channel</string>
+    <string name="public_channel">Public Channel</string>
+    <string name="private_channel">Private Channel</string>
+    <string name="private_caps">PRIVATE</string>
+    <string name="members_count">%1$d members</string>
+    <string name="join_channel">Join %1$s</string>
+    <string name="enter_channel_password">This channel is private. Enter the password to join.</string>
+    <string name="password">Password</string>
+    <string name="show_password">Show password</string>
+    <string name="hide_password">Hide password</string>
+    <string name="join">Join</string>
+
+    <!-- Contacts Screen -->
+    <string name="no_contacts_yet">No contacts yet.\nThey will appear when you discover nearby nodes.</string>
+    <string name="add_contact">Add Contact</string>
+    <string name="scan_qr_code">Scan QR Code</string>
+    <string name="trust_verified">Verified</string>
+    <string name="trust_known">Known</string>
+    <string name="trust_blocked">Blocked</string>
+
+    <!-- Emergency Screen -->
+    <string name="emergency_warning_header">⚠️ Emergency Broadcast</string>
+    <string name="emergency_instructions">Emergency alerts are flooded to all nearby mesh nodes regardless of channel membership. Use only in genuine emergencies.</string>
+    <string name="select_severity">Select Severity Level</string>
+    <string name="severity_advisory">Advisory</string>
+    <string name="severity_watch">Watch</string>
+    <string name="severity_warning">Warning</string>
+    <string name="severity_critical">Critical</string>
+    <string name="severity_emergency">Emergency</string>
+    <string name="emergency_button">SEND EMERGENCY ALERT</string>
+    <string name="emergency_disclaimer">Misuse of this feature may reduce trust in the network.</string>
+    <string name="sending_emergency">Sending emergency broadcast…</string>
+    <string name="emergency_sent_success">Emergency alert sent successfully.</string>
+    <string name="emergency_send_failed">Failed to send alert: %1$s</string>
+    <string name="confirm_emergency">Confirm Emergency</string>
+    <string name="emergency_confirmation_message">Are you sure you want to send a Level %1$d emergency alert to all nearby nodes?</string>
+    <string name="send_emergency">Send Emergency</string>
+
+    <!-- Settings Screen -->
+    <string name="identity">Identity</string>
+    <string name="node_id">Node ID</string>
+    <string name="backup_recovery_phrase">Backup Recovery Phrase</string>
+    <string name="view_or_export">View or export your 12‑word phrase</string>
+    <string name="language_region">Language &amp; Region</string>
+    <string name="language">Language</string>
+    <string name="language_farsi">فارسی</string>
+    <string name="language_english">English</string>
+    <string name="power_battery">Power &amp; Battery</string>
+    <string name="power_profile">Power Profile</string>
+    <string name="reset_to_auto">Reset to Auto</string>
+    <string name="auto_adaptive">Auto (Adaptive)</string>
+    <string name="storage">Storage</string>
+    <string name="storage_used">Storage Used</string>
+    <string name="clear_old_messages">Clear Old Messages</string>
+    <string name="clear_messages_description">Delete messages older than 30 days</string>
+    <string name="clear_messages_confirmation">This will permanently delete old messages. This action cannot be undone.</string>
+    <string name="clear">Clear</string>
+    <string name="about">About</string>
+    <string name="app_version">App Version</string>
+    <string name="build_info">Build Info</string>
+    <string name="about_rezvan_mesh">About Rezvan Mesh</string>
+    <string name="about_description">Decentralized, offline‑first mesh communication for resilient communities.</string>
+    <string name="version_format">Version %1$s</string>
+    <string name="open_source_notice">Built with open‑source technologies.</string>
+    <string name="close">Close</string>
+
+    <!-- Power States -->
+    <string name="power_emergency">Emergency</string>
+    <string name="power_active">Active</string>
+    <string name="power_balanced">Balanced</string>
+    <string name="power_saver">Power Saver</string>
+    <string name="power_minimal">Minimal</string>
+    <string name="power_hibernation">Hibernation</string>
+    <string name="power_dead">Critical</string>
+
+    <!-- Foreground Service -->
+    <string name="mesh_service_title">Rezvan Mesh</string>
+    <string name="mesh_service_running">Mesh service is running</string>
+    <string name="mesh_channel_name">Mesh Connectivity</string>
+    <string name="mesh_channel_description">Maintains mesh network connections</string>
+
+    <!-- General -->
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="continue_text">Continue</string>
+    <string name="failed">Failed</string>
+    <string name="recovery_phrase">Recovery Phrase</string>
+    <string name="recovery_phrase_warning">Never share this phrase with anyone.</string>
+    <string name="restore_identity">Restore Identity</string>
+    <string name="select_language">Select Language</string>
+    <string name="select_power_profile">Select Power Profile</string>
+</resources>
