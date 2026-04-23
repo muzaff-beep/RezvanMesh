@@ -1,9 +1,7 @@
-import com.android.build.gradle.internal.tasks.factory.dependsOn
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    // Do NOT add org.mozilla.rust-android-gradle here
+    id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -136,48 +134,16 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("app.cash.turbine:turbine:1.0.0")
-    
+
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
-// ===== RUST BUILD DISABLED FOR CI =====
-// cargo {
-//     module = "../../rust"
-//     libname = "rezvan_core"
-//     targets = listOf("arm64", "arm")
-//     profile = "release"
-//     prebuiltToolchains = true
-//     verbose = true
-// }
-//
-// tasks.whenTaskAdded {
-//     when (name) {
-//         "mergeDebugJniLibFolders", "mergeReleaseJniLibFolders" -> {
-//             dependsOn("cargoBuild")
-//         }
-//         "javaPreCompileDebug", "javaPreCompileRelease" -> {
-//             dependsOn("cargoBuild")
-//         }
-//     }
-// }
-//
-// tasks.register<Copy>("copyRustLibs") {
-//     dependsOn("cargoBuild")
-//     from("${project.buildDir}/rustJniLibs/android")
-//     into("${project.projectDir}/src/main/jniLibs")
-// }
-//
-// tasks.whenTaskAdded {
-//     if (name == "preDebugBuild" || name == "preReleaseBuild") {
-//         dependsOn("copyRustLibs")
-//     }
-// }
 kapt {
     correctErrorTypes = true
 }
