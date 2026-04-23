@@ -18,6 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rezvani.mesh.R
 import com.rezvani.mesh.ui.components.EmergencyButton
 import com.rezvani.mesh.ui.components.SeverityPicker
+import com.rezvani.mesh.ui.viewmodel.EmergencySendStatus
 import com.rezvani.mesh.ui.viewmodel.EmergencyViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,9 +110,7 @@ fun EmergencyScreen(
 
             // Status message
             when (val status = uiState.sendStatus) {
-                is EmergencySendStatus.Idle -> {
-                    // Nothing shown
-                }
+                is EmergencySendStatus.Idle -> { }
                 is EmergencySendStatus.Sending -> {
                     LinearProgressIndicator(
                         modifier = Modifier.fillMaxWidth()
@@ -157,7 +156,6 @@ fun EmergencyScreen(
             // Emergency button
             EmergencyButton(
                 onClick = { showConfirmationDialog = true },
-                enabled = uiState.sendStatus !is EmergencySendStatus.Sending,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -183,7 +181,7 @@ fun EmergencyScreen(
                 )
             },
             text = {
-                Text(stringResource(R.string.emergency_confirmation_message))
+                Text(stringResource(R.string.emergency_confirmation_message, uiState.selectedSeverity))
             },
             confirmButton = {
                 Button(
