@@ -17,41 +17,24 @@ import com.rezvani.mesh.MeshCore
 import com.rezvani.mesh.R
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * Foreground service that manages the mesh radio lifecycle.
- * 
- * Responsibilities:
- * - Initialize and hold the native MeshCore pointer.
- * - Run periodic tick() every 1 second to drive the mesh engine.
- * - Manage WakeLock to keep CPU alive during mesh operations.
- * - Expose a LocalBinder for Team D to retrieve the native pointer.
- * - Update battery information to the native core.
- */
 class RezvanRadioService : Service() {
 
     private val binder = LocalBinder()
     private lateinit var wakeLock: PowerManager.WakeLock
     private lateinit var radioController: RadioController
+    private lateinit var actionDispatcher: ActionDispatcher
     private val tickHandler = Handler(Looper.getMainLooper())
     private val isRunning = AtomicBoolean(false)
 
     @Volatile
     private var meshCorePtr: Long = 0
 
-    /**
-     * Binder class allowing Team D's UI to access the service instance
-     * and retrieve the native mesh core pointer.
-     */
     inner class LocalBinder : Binder() {
         fun getService(): RezvanRadioService = this@RezvanRadioService
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
 
-    /**
-     * Returns the current native mesh core pointer.
-     * Called by Team D to send messages and query power state.
-     */
     fun getMeshCorePtr(): Long = meshCorePtr
 
     override fun onCreate() {
@@ -61,9 +44,7 @@ class RezvanRadioService : Service() {
         startForegroundWithNotification()
         acquireWakeLock()
         radioController = RadioControllerImpl(this)
-
-        // Initialize ActionDispatcher with application context
-        ActionDispatcher.init(this)
+        actionDispatcher = ActionDispatcher(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -82,7 +63,6 @@ class RezvanRadioService : Service() {
             startWifiServerIfNeeded()
         }
 
-        // If the service is killed, restart with the last intent
         return START_STICKY
     }
 
@@ -101,10 +81,6 @@ class RezvanRadioService : Service() {
         super.onDestroy()
     }
 
-    /**
-     * Called by RadioControllerImpl when a raw packet is received from BLE or WiFi.
-     * Forwards to native core for processing.
-     */
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
         if (meshCorePtr == 0L) return
 
@@ -112,7 +88,7 @@ class RezvanRadioService : Service() {
         val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
 
         result?.let { actions ->
-            ActionDispatcher.dispatch(actions, radioController)
+            actionDispatcher.dispatch(actions, radioController)
         }
     }
 
@@ -128,13 +104,17 @@ class RezvanRadioService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.mesh_service_title))
             .setContentText(getString(R.string.mesh_service_running))
-            .setSmallIcon(R.drawable.ic_mesh_icon) // Placeholder; replace with actual icon
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        startForeground(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun createNotificationChannel() {
@@ -159,7 +139,7 @@ class RezvanRadioService : Service() {
             PowerManager.PARTIAL_WAKE_LOCK,
             "RezvanMesh::RadioWakeLock"
         )
-        wakeLock.acquire(24 * 60 * 60 * 1000) // Long timeout; will be released manually
+        wakeLock.acquire(24 * 60 * 60 * 1000)
     }
 
     private fun releaseWakeLock() {
@@ -175,7 +155,7 @@ class RezvanRadioService : Service() {
 
                 try {
                     val actions = MeshCore.nativeTick(meshCorePtr)
-                    actions?.let { ActionDispatcher.dispatch(it, radioController) }
+                    actions?.let { actionDispatcher.dispatch(it, radioController) }
 
                     updateBatteryInfo()
                 } catch (e: Exception) {
@@ -203,14 +183,8 @@ class RezvanRadioService : Service() {
     }
 
     private fun startWifiServerIfNeeded() {
-        // WiFi server is started by RadioControllerImpl when WiFi Direct is enabled
-        // This is a placeholder for potential future initialization
     }
 
-    /**
-     * Loads the 32-byte identity seed from shared encrypted storage.
-     * Coordinates with Team D's IdentityBackupHelper.
-     */
     private fun loadIdentitySeed(): ByteArray {
         val prefs = getSharedPreferences(PREFS_IDENTITY, Context.MODE_PRIVATE)
         val encoded = prefs.getString(KEY_SEED, null)
