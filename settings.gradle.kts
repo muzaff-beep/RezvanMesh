@@ -3,16 +3,18 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
-        maven("https://maven.mozilla.org/maven2")   // ← Add this line
+        maven("https://maven.mozilla.org/maven2")
     }
 }
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        maven("https://maven.mozilla.org/maven2")   // ← Add this line
+        maven("https://maven.mozilla.org/maven2")
     }
 }
+
 rootProject.name = "RezvanMesh"
 include(":android:app")
