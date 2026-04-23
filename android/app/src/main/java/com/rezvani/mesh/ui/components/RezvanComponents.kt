@@ -2,6 +2,8 @@ package com.rezvani.mesh.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,10 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.rezvani.mesh.R
 
-/**
- * Displays the current mesh power state as a colored dot with text label.
- * Used in top app bars and status areas.
- */
 @Composable
 fun PowerStateIndicator(
     powerState: PowerState = PowerState.BALANCED,
@@ -64,9 +62,6 @@ enum class PowerState {
     EMERGENCY, ACTIVE, BALANCED, POWER_SAVER, MINIMAL, HIBERNATION, DEAD
 }
 
-/**
- * Displays a badge indicating the trust level of a contact.
- */
 @Composable
 fun TrustLevelBadge(
     trustLevel: Int,
@@ -104,9 +99,6 @@ fun TrustLevelBadge(
     }
 }
 
-/**
- * Dialog for entering a password to join a private channel.
- */
 @Composable
 fun PasswordInputDialog(
     channelName: String,
@@ -196,9 +188,6 @@ fun PasswordInputDialog(
     }
 }
 
-/**
- * Large emergency button used on the EmergencyScreen.
- */
 @Composable
 fun EmergencyButton(
     onClick: () -> Unit,
@@ -237,9 +226,6 @@ fun EmergencyButton(
     }
 }
 
-/**
- * Severity level selector for emergency broadcasts.
- */
 @Composable
 fun SeverityPicker(
     selectedLevel: Int,
@@ -306,9 +292,6 @@ fun SeverityPicker(
     }
 }
 
-/**
- * Simple loading indicator with optional message.
- */
 @Composable
 fun LoadingOverlay(
     message: String? = null,
@@ -334,9 +317,6 @@ fun LoadingOverlay(
     }
 }
 
-/**
- * Empty state placeholder with icon and message.
- */
 @Composable
 fun EmptyState(
     icon: ImageVector = Icons.Default.Info,
@@ -375,9 +355,6 @@ fun EmptyState(
     }
 }
 
-/**
- * Confirmation dialog with title, message, and confirm/cancel actions.
- */
 @Composable
 fun ConfirmationDialog(
     title: String,
@@ -412,14 +389,6 @@ fun ConfirmationDialog(
         }
     )
 }
-
-/**
- * Helper extension for clickable without ripple (optional).
- */
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 
 fun Modifier.clickableWithoutRipple(
     onClick: () -> Unit
