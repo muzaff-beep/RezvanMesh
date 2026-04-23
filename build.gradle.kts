@@ -13,6 +13,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven("https://maven.mozilla.org/maven2")
     }
 }
 
@@ -26,21 +27,4 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
             "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi"
         )
     }
-}
-
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        maven("https://maven.mozilla.org/maven2")
-    }
-    dependencies {
-        classpath("org.mozilla.rust-android-gradle:plugin:0.9.4")
-    }
-}
-
-plugins {
-    id("com.android.application") version "8.2.0" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
-    id("org.mozilla.rust-android-gradle") version "0.9.4" apply false
 }
