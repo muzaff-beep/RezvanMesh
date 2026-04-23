@@ -59,13 +59,11 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
-            // Identity Section
             SettingsSection(title = stringResource(R.string.identity)) {
                 SettingsItem(
                     icon = Icons.Default.Person,
                     title = stringResource(R.string.node_id),
-                    subtitle = uiState.nodeId,
-                    onClick = { /* Copy to clipboard */ }
+                    subtitle = uiState.nodeId
                 )
                 SettingsItem(
                     icon = Icons.Default.Key,
@@ -77,7 +75,6 @@ fun SettingsScreen(
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
-            // Language Section
             SettingsSection(title = stringResource(R.string.language_region)) {
                 SettingsItem(
                     icon = Icons.Default.Language,
@@ -92,12 +89,11 @@ fun SettingsScreen(
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
-            // Power Section
             SettingsSection(title = stringResource(R.string.power_battery)) {
                 SettingsItem(
-                    icon = Icons.Default.BatteryAlt,
+                    icon = Icons.Default.BatteryStd,
                     title = stringResource(R.string.power_profile),
-                    subtitle = when (uiState.powerOverride ?: uiState.autoPowerState) {
+                    subtitle = when (val power = uiState.powerOverride ?: uiState.autoPowerState) {
                         PowerState.EMERGENCY -> stringResource(R.string.power_emergency)
                         PowerState.ACTIVE -> stringResource(R.string.power_active)
                         PowerState.BALANCED -> stringResource(R.string.power_balanced)
@@ -120,7 +116,6 @@ fun SettingsScreen(
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
-            // Storage Section
             SettingsSection(title = stringResource(R.string.storage)) {
                 SettingsItem(
                     icon = Icons.Default.Storage,
@@ -138,7 +133,6 @@ fun SettingsScreen(
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
-            // About Section
             SettingsSection(title = stringResource(R.string.about)) {
                 SettingsItem(
                     icon = Icons.Default.Info,
@@ -155,7 +149,6 @@ fun SettingsScreen(
         }
     }
 
-    // Language Selection Dialog
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
@@ -173,7 +166,6 @@ fun SettingsScreen(
                                     viewModel.setLanguage(code)
                                     LocaleHelper.saveLanguage(context, code)
                                     showLanguageDialog = false
-                                    // Activity will be recreated by LocaleHelper
                                 }
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -196,7 +188,6 @@ fun SettingsScreen(
         )
     }
 
-    // Power Profile Selection Dialog
     if (showPowerDialog) {
         AlertDialog(
             onDismissRequest = { showPowerDialog = false },
@@ -228,7 +219,7 @@ fun SettingsScreen(
                                         PowerState.POWER_SAVER -> stringResource(R.string.power_saver)
                                         PowerState.MINIMAL -> stringResource(R.string.power_minimal)
                                         PowerState.HIBERNATION -> stringResource(R.string.power_hibernation)
-                                        else -> state.name
+                                        PowerState.DEAD -> stringResource(R.string.power_dead)
                                     })
                                     Text(
                                         text = getPowerStateDescription(state),
@@ -268,7 +259,6 @@ fun SettingsScreen(
         )
     }
 
-    // Backup Mnemonic Dialog
     if (showBackupDialog) {
         AlertDialog(
             onDismissRequest = { showBackupDialog = false },
@@ -302,7 +292,6 @@ fun SettingsScreen(
         )
     }
 
-    // Clear Data Confirmation Dialog
     if (showClearDataDialog) {
         ConfirmationDialog(
             title = stringResource(R.string.clear_old_messages),
@@ -318,7 +307,6 @@ fun SettingsScreen(
         )
     }
 
-    // About Dialog
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
@@ -416,7 +404,6 @@ fun SettingsItem(
     }
 }
 
-@Composable
 fun getPowerStateDescription(state: PowerState): String {
     return when (state) {
         PowerState.EMERGENCY -> "2-4 hours battery, maximum range"
