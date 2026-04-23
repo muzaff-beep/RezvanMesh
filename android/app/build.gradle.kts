@@ -3,8 +3,7 @@ import com.android.build.gradle.internal.tasks.factory.dependsOn
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.mozilla.rust-android-gradle")
-    id("kotlin-kapt")
+    // Do NOT add org.mozilla.rust-android-gradle here
 }
 
 android {
