@@ -1,4 +1,3 @@
-
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App Name -->
@@ -98,6 +97,53 @@
     <string name="view_or_export">View or export your 12‑word phrase</string>
     <string name="language_region">Language &amp; Region</string>
     <string name="language">Language</string>
+    <string name="language_farsi">فارسی</string>
+    <string name="language_english">English</string>
+    <string name="power_battery">Power &amp; Battery</string>
+    <string name="power_profile">Power Profile</string>
+    <string name="reset_to_auto">Reset to Auto</string>
+    <string name="auto_adaptive">Auto (Adaptive)</string>
+    <string name="storage">Storage</string>
+    <string name="storage_used">Storage Used</string>
+    <string name="clear_old_messages">Clear Old Messages</string>
+    <string name="clear_messages_description">Delete messages older than 30 days</string>
+    <string name="clear_messages_confirmation">This will permanently delete old messages. This action cannot be undone.</string>
+    <string name="clear">Clear</string>
+    <string name="about">About</string>
+    <string name="app_version">App Version</string>
+    <string name="build_info">Build Info</string>
+    <string name="about_rezvan_mesh">About Rezvan Mesh</string>
+    <string name="about_description">Decentralized, offline‑first mesh communication for resilient communities.</string>
+    <string name="version_format">Version %1$s</string>
+    <string name="open_source_notice">Built with open‑source technologies.</string>
+    <string name="close">Close</string>
+
+    <!-- Power States -->
+    <string name="power_emergency">Emergency</string>
+    <string name="power_active">Active</string>
+    <string name="power_balanced">Balanced</string>
+    <string name="power_saver">Power Saver</string>
+    <string name="power_minimal">Minimal</string>
+    <string name="power_hibernation">Hibernation</string>
+    <string name="power_dead">Critical</string>
+
+    <!-- Foreground Service -->
+    <string name="mesh_service_title">Rezvan Mesh</string>
+    <string name="mesh_service_running">Mesh service is running</string>
+    <string name="mesh_channel_name">Mesh Connectivity</string>
+    <string name="mesh_channel_description">Maintains mesh network connections</string>
+
+    <!-- General -->
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="continue_text">Continue</string>
+    <string name="failed">Failed</string>
+    <string name="recovery_phrase">Recovery Phrase</string>
+    <string name="recovery_phrase_warning">Never share this phrase with anyone.</string>
+    <string name="restore_identity">Restore Identity</string>
+    <string name="select_language">Select Language</string>
+    <string name="select_power_profile">Select Power Profile</string>
+</resources>    <string name="language">Language</string>
     <string name="language_farsi">فارسی</string>
     <string name="language_english">English</string>
     <string name="power_battery">Power &amp; Battery</string>
