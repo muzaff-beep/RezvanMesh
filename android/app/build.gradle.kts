@@ -34,9 +34,6 @@ android {
             keyAlias = System.getenv("KEY_ALIAS") ?: "rezvan"
             keyPassword = System.getenv("KEY_PASSWORD") ?: ""
         }
-        create("debug") {
-            storeFile = file(project.rootProject.file("debug.keystore"))
-        }
     }
 
     buildTypes {
@@ -53,7 +50,7 @@ android {
             isDebuggable = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            signingConfig = signingConfigs.getByName("debug")
+            // No custom signing config; uses default debug keystore
         }
     }
 
