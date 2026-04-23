@@ -14,63 +14,46 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rezvani.mesh.R
-import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.ui.components.LoadingOverlay
 import com.rezvani.mesh.ui.viewmodel.OnboardingViewModel
 
-/**
- * Three-step onboarding screen:
- * 1. Welcome message explaining mesh offline capability.
- * 2. Generate new identity (or restore from mnemonic).
- * 3. Display 12-word mnemonic for backup.
- */
 @Composable
 fun OnboardingScreen(
     onOnboardingComplete: () -> Unit,
     viewModel: OnboardingViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState
     val scrollState = rememberScrollState()
 
     Scaffold(
         bottomBar = {
             OnboardingBottomBar(
                 uiState = uiState,
-                onNext = {
-                    viewModel.nextStep()
-                },
-                onBack = {
-                    viewModel.previousStep()
-                },
-                onGenerateIdentity = {
-                    viewModel.generateIdentity(context)
-                },
-                onRestoreIdentity = {
-                    viewModel.showRestoreDialog()
-                },
+                onNext = { viewModel.nextStep() },
+                onBack = { viewModel.previousStep() },
+                onGenerateIdentity = { viewModel.generateIdentity(context) },
+                onRestoreIdentity = { viewModel.showRestoreDialog() },
                 onConfirmBackup = {
                     viewModel.confirmBackup()
                     onOnboardingComplete()
                 }
             )
         }
-    ) {
-        paddingValues ->
+    ) { paddingValues ->
         Box(
             modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
             Column(
                 modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 32.dp),
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 24.dp, vertical = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // Logo / Icon placeholder
                 Surface(
                     modifier = Modifier.size(100.dp),
                     shape = MaterialTheme.shapes.large,
@@ -95,21 +78,15 @@ fun OnboardingScreen(
                     )
                     OnboardingStep.RESTORE -> RestoreStep(
                         mnemonicInput = uiState.mnemonicInput,
-                        onMnemonicChange = {
-                            viewModel.updateMnemonicInput(it)
-                        },
+                        onMnemonicChange = { viewModel.updateMnemonicInput(it) },
                         isRestoring = uiState.isRestoring,
                         errorMessage = uiState.errorMessage,
-                        onRestore = {
-                            viewModel.restoreIdentity(context, uiState.mnemonicInput)
-                        }
+                        onRestore = { viewModel.restoreIdentity(context, uiState.mnemonicInput) }
                     )
                     OnboardingStep.BACKUP -> BackupStep(
                         mnemonicWords = uiState.mnemonicWords,
                         hasConfirmed = uiState.hasConfirmedBackup,
-                        onToggleConfirm = {
-                            viewModel.toggleConfirmBackup()
-                        }
+                        onToggleConfirm = { viewModel.toggleConfirmBackup() }
                     )
                 }
             }
@@ -120,15 +97,10 @@ fun OnboardingScreen(
         }
     }
 
-    // Restore dialog
     if (uiState.showRestoreDialog) {
         AlertDialog(
-            onDismissRequest = {
-                viewModel.dismissRestoreDialog()
-            },
-            title = {
-                Text(stringResource(R.string.restore_identity))
-            },
+            onDismissRequest = { viewModel.dismissRestoreDialog() },
+            title = { Text(stringResource(R.string.restore_identity)) },
             text = {
                 Column {
                     Text(stringResource(R.string.restore_identity_message))
@@ -151,9 +123,7 @@ fun OnboardingScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    viewModel.dismissRestoreDialog()
-                }) {
+                TextButton(onClick = { viewModel.dismissRestoreDialog() }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -263,11 +233,9 @@ fun RestoreStep(
         value = mnemonicInput,
         onValueChange = onMnemonicChange,
         modifier = Modifier
-        .fillMaxWidth()
-        .height(120.dp),
-        placeholder = {
-            Text(stringResource(R.string.enter_12_words))
-        },
+            .fillMaxWidth()
+            .height(120.dp),
+        placeholder = { Text(stringResource(R.string.enter_12_words)) },
         minLines = 3,
         maxLines = 5,
         enabled = !isRestoring
@@ -317,7 +285,6 @@ fun BackupStep(
         color = MaterialTheme.colorScheme.error
     )
 
-    // Mnemonic display grid (3 columns x 4 rows)
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -328,14 +295,12 @@ fun BackupStep(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            mnemonicWords.chunked(3).forEach {
-                rowWords ->
+            mnemonicWords.chunked(3).forEach { rowWords ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    rowWords.forEachIndexed {
-                        index, word ->
+                    rowWords.forEachIndexed { index, word ->
                         val wordNumber = mnemonicWords.indexOf(word) + 1
                         Surface(
                             modifier = Modifier.weight(1f),
@@ -344,8 +309,8 @@ fun BackupStep(
                         ) {
                             Row(
                                 modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
@@ -365,7 +330,6 @@ fun BackupStep(
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                     }
-                    // Fill empty slots if row has less than 3 words
                     repeat(3 - rowWords.size) {
                         if (it > 0) Spacer(modifier = Modifier.width(8.dp))
                         Spacer(modifier = Modifier.weight(1f))
@@ -382,16 +346,13 @@ fun BackupStep(
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
-    // Confirmation checkbox
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
             checked = hasConfirmed,
-            onCheckedChange = {
-                onToggleConfirm()
-            }
+            onCheckedChange = { onToggleConfirm() }
         )
         Text(
             text = stringResource(R.string.i_have_saved_my_recovery_phrase),
@@ -415,8 +376,8 @@ fun OnboardingBottomBar(
     ) {
         Row(
             modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             when (uiState.step) {
