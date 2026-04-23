@@ -292,10 +292,11 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun connectWifiDirect(peerMacAddress: String): Boolean {
-        val config = WifiP2pConfig.Builder()
-            .setDeviceAddress(peerMacAddress)
-            .build()
+        val config = WifiP2pConfig().apply {
+            deviceAddress = peerMacAddress
+        }
         wifiP2pChannel?.let { channel ->
             wifiP2pManager?.connect(channel, config, object : WifiP2pManager.ActionListener {
                 override fun onSuccess() {
