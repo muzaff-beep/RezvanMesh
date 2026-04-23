@@ -1,9 +1,3 @@
-
-File: ActionDispatcher.kt
-
-Location: android/app/src/main/java/com/rezvani/mesh/radio/ActionDispatcher.kt
-
-```kotlin
 package com.rezvani.mesh.radio
 
 import android.content.Context
@@ -13,122 +7,141 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/**
- * Parses the binary action format produced by the Rust mesh core and dispatches
- * commands to the appropriate [RadioController] methods or broadcasts to the UI.
- *
- * Action Format (from Team A):
-```
+class ActionDispatcher(private val context: Context) {
 
-· [1 byte: Action Count N]
-    · For each action:
-    ·
-    ·
-    ·
-    · ```
-·
-· Action Types:
-· · 0x01: Send BLE advertisement (payload: 31-byte ad data)
-· · 0x02: Send WiFi Direct packet (payload: 4B IP, 2B port, data)
-· · 0x03: Send BLE packet to specific peer (payload: 6B MAC, data)
-· · 0x04: Update scan interval (payload: 4B interval_ms, 4B window_ms)
-· · 0x05: Notify UI of new message (payload: serialized DecryptedMessage)
-    */
-    class ActionDispatcher(private val context: Context) {
-  private val localBroadcastManager: LocalBroadcastManager by lazy {
-  LocalBroadcastManager.getInstance(context.applicationContext)
-  }
-  /**
-  · Dispatches a serialized action byte array to the appropriate handlers.
-  ·
-  · @param actionBytes The serialized actions from native core (may be null or empty).
-  · @param radio The RadioController instance to execute radio commands.
-    */
+    private val localBroadcastManager: LocalBroadcastManager by lazy {
+        LocalBroadcastManager.getInstance(context.applicationContext)
+    }
+
     fun dispatch(actionBytes: ByteArray?, radio: RadioController) {
-    if (actionBytes == null || actionBytes.isEmpty()) {
-    return
-    }
-    val buffer = ByteBuffer.wrap(actionBytes).order(ByteOrder.BIG_ENDIAN)
-    // Check if there's at least one byte for count
-    if (!buffer.hasRemaining()) {
-    Log.w(TAG, "Empty action buffer")
-    return
-    }
-    val count = (buffer.get().toInt() and 0xFF)
-    Log.d(TAG, "Dispatching $count actions")
-    repeat(count) {
-    if (buffer.remaining() < 3) {
-    Log.e(TAG, "Incomplete action header at index $it")
-    return
-    }
-    }
-    }
-  private fun handleBleAdvertisement(payload: ByteArray, radio: RadioController) {
-  if (payload.size != 31) {
-  Log.w(TAG, "BLE advertisement payload must be 31 bytes, got ${payload.size}")
-  return
-  }
-  // Default advertising interval: 5000 ms (5 seconds)
-  radio.startBleAdvertising(payload, 5000)
-  }
-  private fun handleWifiPacket(payload: ByteArray, radio: RadioController) {
-  if (payload.size < 6) {
-  Log.w(TAG, "WiFi packet payload too short: ${payload.size}")
-  return
-  }
-  }
-  private fun handleBlePacket(payload: ByteArray, radio: RadioController) {
-  if (payload.size < 6) {
-  Log.w(TAG, "BLE packet payload too short: ${payload.size}")
-  return
-  }
-  }
-  private fun handleUpdateScan(payload: ByteArray, radio: RadioController) {
-  if (payload.size < 8) {
-  Log.w(TAG, "UpdateScan payload too short: ${payload.size}")
-  return
-  }
-  }
-  private fun handleNotifyUi(payload: ByteArray) {
-  val intent = Intent(ACTION_NEW_MESSAGE)
-  intent.putExtra(EXTRA_DECRYPTED_MESSAGE, payload)
-  localBroadcastManager.sendBroadcast(intent)
-  Log.d(TAG, "Broadcasted new message to UI")
-  }
-  companion object {
-  private const val TAG = "ActionDispatcher"
-  }
-  }
+        if (actionBytes == null || actionBytes.isEmpty()) {
+            return
+        }
 
-```
+        val buffer = ByteBuffer.wrap(actionBytes).order(ByteOrder.BIG_ENDIAN)
 
-    **Integration Note for Team C:**
+        if (!buffer.hasRemaining()) {
+            Log.w(TAG, "Empty action buffer")
+            return
+        }
 
-    In `RezvanRadioService`, instantiate `ActionDispatcher` as a member variable:
+        val count = (buffer.get().toInt() and 0xFF)
+        Log.d(TAG, "Dispatching $count actions")
 
-```kotlin
-class RezvanRadioService : Service() {
-    private lateinit var actionDispatcher: ActionDispatcher
-
-    override fun onCreate() {
-        super.onCreate()
-        actionDispatcher = ActionDispatcher(this)
-        // ... rest of initialization
-    }
-
-    private fun startPeriodicTick() {
-        tickHandler.post(object : Runnable {
-            override fun run() {
-                val actions = MeshCore.nativeTick(meshCorePtr)
-                actionDispatcher.dispatch(actions, radioController)
-                // ...
+        repeat(count) {
+            if (buffer.remaining() < 3) {
+                Log.e(TAG, "Incomplete action header at index $it")
+                return
             }
-        })
+
+            val type = (buffer.get().toInt() and 0xFF)
+            val length = (buffer.short.toInt() and 0xFFFF)
+
+            if (length < 0 || length > buffer.remaining()) {
+                Log.e(TAG, "Invalid action length: $length, remaining: ${buffer.remaining()}")
+                return
+            }
+
+            val payload = ByteArray(length)
+            if (length > 0) {
+                buffer.get(payload)
+            }
+
+            try {
+                when (type) {
+                    TYPE_BLE_ADVERTISEMENT -> handleBleAdvertisement(payload, radio)
+                    TYPE_WIFI_PACKET -> handleWifiPacket(payload, radio)
+                    TYPE_BLE_PACKET -> handleBlePacket(payload, radio)
+                    TYPE_UPDATE_SCAN -> handleUpdateScan(payload, radio)
+                    TYPE_NOTIFY_UI -> handleNotifyUi(payload)
+                    else -> Log.w(TAG, "Unknown action type: $type")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error dispatching action type $type", e)
+            }
+        }
     }
 
-    fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
-        val timestampUs = System.currentTimeMillis() * 1000
-        val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
-        actionDispatcher.dispatch(result, radioController)
+    private fun handleBleAdvertisement(payload: ByteArray, radio: RadioController) {
+        if (payload.size != 31) {
+            Log.w(TAG, "BLE advertisement payload must be 31 bytes, got ${payload.size}")
+            return
+        }
+        radio.startBleAdvertising(payload, 5000)
+    }
+
+    private fun handleWifiPacket(payload: ByteArray, radio: RadioController) {
+        if (payload.size < 6) {
+            Log.w(TAG, "WiFi packet payload too short: ${payload.size}")
+            return
+        }
+
+        val ipBuffer = ByteBuffer.wrap(payload, 0, 4).order(ByteOrder.BIG_ENDIAN)
+        val ip = ipBuffer.int
+
+        val portBuffer = ByteBuffer.wrap(payload, 4, 2).order(ByteOrder.BIG_ENDIAN)
+        val port = (portBuffer.short.toInt() and 0xFFFF)
+
+        val data = payload.sliceArray(6 until payload.size)
+
+        val ipString = String.format(
+            "%d.%d.%d.%d",
+            (ip shr 24) and 0xFF,
+            (ip shr 16) and 0xFF,
+            (ip shr 8) and 0xFF,
+            ip and 0xFF
+        )
+
+        radio.sendWifiPacket(ipString, port, data)
+    }
+
+    private fun handleBlePacket(payload: ByteArray, radio: RadioController) {
+        if (payload.size < 6) {
+            Log.w(TAG, "BLE packet payload too short: ${payload.size}")
+            return
+        }
+
+        val mac = payload.sliceArray(0..5)
+        val data = payload.sliceArray(6 until payload.size)
+
+        val macString = mac.joinToString(":") {
+            "%02X".format(it)
+        }
+        radio.sendBlePacket(macString, data)
+    }
+
+    private fun handleUpdateScan(payload: ByteArray, radio: RadioController) {
+        if (payload.size < 8) {
+            Log.w(TAG, "UpdateScan payload too short: ${payload.size}")
+            return
+        }
+
+        val intervalBuffer = ByteBuffer.wrap(payload, 0, 4).order(ByteOrder.BIG_ENDIAN)
+        val intervalMs = intervalBuffer.int.toLong()
+
+        val windowBuffer = ByteBuffer.wrap(payload, 4, 4).order(ByteOrder.BIG_ENDIAN)
+        val windowMs = windowBuffer.int.toLong()
+
+        radio.startBleScan(intervalMs, windowMs)
+    }
+
+    private fun handleNotifyUi(payload: ByteArray) {
+        val intent = Intent(ACTION_NEW_MESSAGE)
+        intent.putExtra(EXTRA_DECRYPTED_MESSAGE, payload)
+        localBroadcastManager.sendBroadcast(intent)
+        Log.d(TAG, "Broadcasted new message to UI")
+    }
+
+    companion object {
+        private const val TAG = "ActionDispatcher"
+
+        const val TYPE_BLE_ADVERTISEMENT: Int = 0x01
+        const val TYPE_WIFI_PACKET: Int = 0x02
+        const val TYPE_BLE_PACKET: Int = 0x03
+        const val TYPE_UPDATE_SCAN: Int = 0x04
+        const val TYPE_NOTIFY_UI: Int = 0x05
+
+        const val ACTION_NEW_MESSAGE = "com.rezvani.mesh.NEW_MESSAGE"
+        const val EXTRA_DECRYPTED_MESSAGE = "decrypted_message"
     }
 }
