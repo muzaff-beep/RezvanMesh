@@ -147,40 +147,38 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
-// Rust configuration
-cargo {
-    module = "../../rust"
-    libname = "rezvan_core"
-    targets = listOf("arm64", "arm")
-    profile = "release"
-    prebuiltToolchains = true
-    verbose = true
-}
-
-tasks.whenTaskAdded {
-    when (name) {
-        "mergeDebugJniLibFolders", "mergeReleaseJniLibFolders" -> {
-            dependsOn("cargoBuild")
-        }
-        "javaPreCompileDebug", "javaPreCompileRelease" -> {
-            dependsOn("cargoBuild")
-        }
-    }
-}
-
-// Copy native libraries to jniLibs
-tasks.register<Copy>("copyRustLibs") {
-    dependsOn("cargoBuild")
-    from("${project.buildDir}/rustJniLibs/android")
-    into("${project.projectDir}/src/main/jniLibs")
-}
-
-tasks.whenTaskAdded {
-    if (name == "preDebugBuild" || name == "preReleaseBuild") {
-        dependsOn("copyRustLibs")
-    }
-}
-
+// ===== RUST BUILD DISABLED FOR CI =====
+// cargo {
+//     module = "../../rust"
+//     libname = "rezvan_core"
+//     targets = listOf("arm64", "arm")
+//     profile = "release"
+//     prebuiltToolchains = true
+//     verbose = true
+// }
+//
+// tasks.whenTaskAdded {
+//     when (name) {
+//         "mergeDebugJniLibFolders", "mergeReleaseJniLibFolders" -> {
+//             dependsOn("cargoBuild")
+//         }
+//         "javaPreCompileDebug", "javaPreCompileRelease" -> {
+//             dependsOn("cargoBuild")
+//         }
+//     }
+// }
+//
+// tasks.register<Copy>("copyRustLibs") {
+//     dependsOn("cargoBuild")
+//     from("${project.buildDir}/rustJniLibs/android")
+//     into("${project.projectDir}/src/main/jniLibs")
+// }
+//
+// tasks.whenTaskAdded {
+//     if (name == "preDebugBuild" || name == "preReleaseBuild") {
+//         dependsOn("copyRustLibs")
+//     }
+// }
 kapt {
     correctErrorTypes = true
 }
