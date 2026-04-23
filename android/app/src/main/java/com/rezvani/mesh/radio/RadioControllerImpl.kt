@@ -6,8 +6,6 @@ import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
-import android.bluetooth.BluetoothGattServer
-import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.AdvertiseCallback
@@ -16,7 +14,6 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.BroadcastReceiver
@@ -24,18 +21,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.p2p.WifiP2pConfig
-import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.ParcelUuid
 import android.util.Log
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.IOException
-import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.UUID
@@ -44,44 +38,36 @@ import java.util.concurrent.atomic.AtomicReference
 
 class RadioControllerImpl(private val context: Context) : RadioController {
 
-    // BLE components
     private val bluetoothManager: BluetoothManager =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
     private var bleScanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
     private var bleAdvertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
 
-    // BLE connections: MAC address -> BluetoothGatt
     private val bleGattMap = ConcurrentHashMap<String, BluetoothGatt>()
-    // BLE packet senders: MAC address -> BlePacketSender
     private val bleSenderMap = ConcurrentHashMap<String, BlePacketSender>()
+    private val cachedRssiMap = ConcurrentHashMap<String, Int>()
 
-    // BLE scanning state
     private var isScanning = false
     private var scanIntervalMs = 0L
     private var scanWindowMs = 0L
     private val scanHandler = Handler(Looper.getMainLooper())
 
-    // BLE advertising state
     private var isAdvertising = false
 
-    // WiFi Direct components
     private val wifiP2pManager: WifiP2pManager? =
         context.getSystemService(Context.WIFI_P2P_SERVICE) as? WifiP2pManager
     private var wifiP2pChannel: WifiP2pManager.Channel? = null
     private var wifiDirectReceiver: BroadcastReceiver? = null
 
-    // WiFi Direct server
     private var serverSocket: ServerSocket? = null
     private val wifiClients = ConcurrentHashMap<String, Socket>()
     private val serverThread = AtomicReference<Thread>()
 
-    // Reference to the service for packet callbacks
     private val radioService: RezvanRadioService? =
         if (context is RezvanRadioService) context else null
 
     init {
-        // Initialize WiFi Direct if supported
         if (wifiP2pManager != null) {
             wifiP2pChannel = wifiP2pManager?.initialize(context, Looper.getMainLooper(), null)
             setupWifiDirectReceiver()
@@ -89,7 +75,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ---------- BLE Scanning ----------
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
             Log.w(TAG, "Bluetooth not enabled; cannot start scan")
@@ -107,7 +92,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private fun scheduleScanCycle() {
         if (!isScanning) return
         bleScanner?.startScan(null, scanSettings, scanCallback)
-        // After scanning for windowMs, stop for the remainder of interval
         scanHandler.postDelayed({
             bleScanner?.stopScan(scanCallback)
             if (isScanning) {
@@ -127,7 +111,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val bytes = result.scanRecord?.bytes ?: return
-            // Filter for Rezvan protocol ID "RV" (0x52 0x56)
             if (bytes.size >= 2 && bytes[0] == 0x52.toByte() && bytes[1] == 0x56.toByte()) {
                 radioService?.onPacketReceived(bytes, result.rssi)
             }
@@ -144,7 +127,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
 
-    // ---------- BLE Advertising ----------
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) {
             Log.w(TAG, "Bluetooth not enabled; cannot advertise")
@@ -184,7 +166,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ---------- BLE Connections ----------
     override fun connectToPeer(peerMacAddress: String): Boolean {
         val device = bluetoothAdapter?.getRemoteDevice(peerMacAddress) ?: return false
         if (bleGattMap.containsKey(peerMacAddress)) {
@@ -209,6 +190,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     override fun disconnectPeer(peerMacAddress: String) {
         bleGattMap.remove(peerMacAddress)?.disconnect()
         bleSenderMap.remove(peerMacAddress)
+        cachedRssiMap.remove(peerMacAddress)
     }
 
     private val gattCallback = object : BluetoothGattCallback() {
@@ -223,6 +205,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                     Log.d(TAG, "BLE disconnected from $mac")
                     bleGattMap.remove(mac)
                     bleSenderMap.remove(mac)
+                    cachedRssiMap.remove(mac)
                     gatt.close()
                 }
             }
@@ -235,9 +218,9 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                     val writeChar = service.getCharacteristic(CHARACTERISTIC_WRITE_UUID)
                     val notifyChar = service.getCharacteristic(CHARACTERISTIC_NOTIFY_UUID)
                     if (writeChar != null) {
-                        val sender = BlePacketSender(gatt, writeChar)
+                        val sender = BlePacketSender(gatt)
+                        sender.setCharacteristic(writeChar)
                         bleSenderMap[gatt.device.address] = sender
-                        // Enable notifications
                         if (notifyChar != null) {
                             gatt.setCharacteristicNotification(notifyChar, true)
                             val descriptor = notifyChar.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID)
@@ -267,7 +250,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         ) {
             if (characteristic.uuid == CHARACTERISTIC_NOTIFY_UUID) {
                 val data = characteristic.value
-                val rssi = getCurrentRssi(gatt.device.address)
+                val rssi = cachedRssiMap[gatt.device.address] ?: 0
                 radioService?.onPacketReceived(data, rssi)
             }
         }
@@ -280,9 +263,14 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             val sender = bleSenderMap[gatt.device.address]
             sender?.onWriteComplete(status == BluetoothGatt.GATT_SUCCESS)
         }
+
+        override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                cachedRssiMap[gatt.device.address] = rssi
+            }
+        }
     }
 
-    // ---------- WiFi Direct ----------
     override fun isWifiDirectSupported(): Boolean = wifiP2pManager != null
 
     override fun startWifiDirectDiscovery() {
@@ -330,7 +318,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     override fun disconnectWifiDirect(peerIpAddress: String) {
         wifiClients[peerIpAddress]?.close()
         wifiClients.remove(peerIpAddress)
-        // Optionally remove the WiFi Direct group
         wifiP2pChannel?.let { channel ->
             wifiP2pManager?.removeGroup(channel, null)
         }
@@ -347,18 +334,9 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             override fun onReceive(context: Context, intent: Intent) {
                 when (intent.action) {
                     WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
-                        wifiP2pManager?.requestPeers(wifiP2pChannel) { peers: WifiP2pDeviceList ->
-                            // Notify native core of discovered peers
-                            peers.deviceList.forEach { device ->
-                                // Convert to appropriate format and call onPacketReceived?
-                                // The core expects raw packets; here we might forward device info
-                            }
-                        }
+                        wifiP2pManager?.requestPeers(wifiP2pChannel) { _: WifiP2pDeviceList -> }
                     }
-                    WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                        // Connection established or lost
-                        // Update server to accept new clients
-                    }
+                    WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> { }
                 }
             }
         }
@@ -388,14 +366,12 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             try {
                 val input = DataInputStream(socket.getInputStream())
                 while (!socket.isClosed) {
-                    // Read 2-byte big-endian length prefix
                     val length = input.readUnsignedShort()
                     val data = ByteArray(length)
                     input.readFully(data)
-                    radioService?.onPacketReceived(data, 0) // RSSI not available
+                    radioService?.onPacketReceived(data, 0)
                 }
             } catch (e: EOFException) {
-                // Normal disconnect
             } catch (e: IOException) {
                 Log.w(TAG, "WiFi client read error", e)
             } finally {
@@ -413,48 +389,20 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         wifiClients.clear()
     }
 
-    // ---------- RSSI Monitoring ----------
     override fun getCurrentRssi(peerMacAddress: String): Int {
-        val gatt = bleGattMap[peerMacAddress]
-        return if (gatt != null) {
-            gatt.readRemoteRssi()
-            // RSSI will be delivered via onReadRemoteRssi callback
-            // For synchronous access, we'd need to cache, but interface expects immediate int
-            // We can return a cached value from last read.
-            cachedRssiMap[peerMacAddress] ?: Int.MIN_VALUE
-        } else {
-            Int.MIN_VALUE
-        }
+        val gatt = bleGattMap[peerMacAddress] ?: return Int.MIN_VALUE
+        gatt.readRemoteRssi()
+        return cachedRssiMap[peerMacAddress] ?: Int.MIN_VALUE
     }
 
-    private val cachedRssiMap = ConcurrentHashMap<String, Int>()
-
-    // Extend gattCallback to cache RSSI
-    private val extendedGattCallback = object : BluetoothGattCallback() {
-        // ... existing overrides ...
-        override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                cachedRssiMap[gatt.device.address] = rssi
-            }
-        }
-    }
-
-    // Note: The gattCallback variable above needs to be replaced with extendedGattCallback
-    // For brevity, we keep as is; in production, use the extended one.
-
-    // ---------- Power Control ----------
     override fun setBleTxPower(dbm: Int) {
-        // Android does not expose a direct API for BLE TX power per advertisement
-        // It can be set via AdvertiseSettings.Builder.setTxPowerLevel()
         Log.d(TAG, "setBleTxPower: $dbm (not directly supported)")
     }
 
     override fun setWifiTxPower(dbm: Int) {
-        // WiFi TX power is not exposed in Android SDK
         Log.d(TAG, "setWifiTxPower: $dbm (not supported)")
     }
 
-    // ---------- Lifecycle ----------
     override fun onDestroy() {
         stopBleScan()
         stopBleAdvertising()
@@ -469,8 +417,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     companion object {
         private const val TAG = "RadioControllerImpl"
         private const val WIFI_PORT = 4237
-        private const val MANUFACTURER_ID = 0xFFFF // Placeholder; Rezvan should register a real ID
-
+        private const val MANUFACTURER_ID = 0xFFFF
         private val SERVICE_UUID = UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb")
         private val CHARACTERISTIC_WRITE_UUID = UUID.fromString("0000c3d4-0000-1000-8000-00805f9b34fb")
         private val CHARACTERISTIC_NOTIFY_UUID = UUID.fromString("0000e5f6-0000-1000-8000-00805f9b34fb")
