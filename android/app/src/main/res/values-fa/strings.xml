@@ -41,6 +41,11 @@
     <string name="search_contacts">جستجوی مخاطبین…</string>
     <string name="no_matching_contacts">مخاطبی یافت نشد</string>
 
+
+    <string name="emergency">اضطراری</string>
+    <string name="new_conversation">گفتگوی جدید</string>
+
+    
     <!-- Chat Detail -->
     <string name="type_message">پیام خود را بنویسید…</string>
     <string name="attach_file">ضمیمه فایل</string>
