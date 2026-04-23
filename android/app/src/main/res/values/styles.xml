@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.RezvanMesh" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#2C5F7C</item>
+        <item name="android:colorPrimaryDark">#1A3A4F</item>
+        <item name="android:colorAccent">#B8860B</item>
+        <item name="android:statusBarColor">#1A3A4F</item>
+        <item name="android:navigationBarColor">#1A3A4F</item>
+    </style>
+</resources>
