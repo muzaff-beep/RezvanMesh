@@ -13,7 +13,9 @@ object CrashLogger {
     private var crashFile: File? = null
 
     fun init(context: Context) {
-        crashFile = File(context.getExternalFilesDir(null), "rezvan_crashes.txt")
+        // Use the exact path you provided
+        val documentsDir = File("/storage/emulated/0/Documents")
+        crashFile = File(documentsDir, "rezvan_crashes.txt")
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e(TAG, "Uncaught exception", throwable)
