@@ -20,6 +20,7 @@ import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.ui.navigation.NavGraph
 import com.rezvani.mesh.ui.theme.RezvanMeshTheme
+import com.rezvani.mesh.utils.CrashLogger
 import com.rezvani.mesh.utils.LocaleHelper
 import kotlinx.coroutines.launch
 import java.util.*
@@ -55,15 +56,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Start the radio service
+        CrashLogger.init(this)
         startRadioService()
-
-        // Initialize identity if not exists (first run after onboarding)
         lifecycleScope.launch {
             ensureIdentityExists()
         }
-
         setContent {
             RezvanMeshTheme {
                 Surface(
@@ -98,14 +95,12 @@ class MainActivity : ComponentActivity() {
     private suspend fun ensureIdentityExists() {
         val seed = IdentityBackupHelper.loadSeed(this)
         if (seed == null) {
-            // No identity yet - onboarding will handle
             Log.i(TAG, "No identity found - onboarding required")
         }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        // Handle RTL/LTR changes if needed
     }
 
     companion object {
