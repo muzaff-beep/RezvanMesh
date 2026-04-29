@@ -1,59 +1,15 @@
 package com.rezvani.mesh
 
-import android.util.Log
-
 object MeshCore {
-    private const val TAG = "MeshCore"
+    fun isNativeAvailable(): Boolean = false
 
-    private var nativeAvailable = false
-
-    init {
-        try {
-            System.loadLibrary("rezvan_core")
-            nativeAvailable = true
-            Log.i(TAG, "Native library loaded successfully")
-        } catch (e: UnsatisfiedLinkError) {
-            nativeAvailable = false
-            Log.e(TAG, "Native library not available - mesh engine disabled", e)
-        }
-    }
-
-    fun isNativeAvailable(): Boolean = nativeAvailable
-
-    @JvmStatic
-    external fun nativeInit(seed: ByteArray, storagePath: String): Long
-
-    @JvmStatic
-    external fun nativeProcessIncoming(
-        corePtr: Long,
-        packet: ByteArray,
-        rssi: Int,
-        timestampUs: Long
-    ): ByteArray?
-
-    @JvmStatic
-    external fun nativeTick(corePtr: Long): ByteArray?
-
-    @JvmStatic
-    external fun nativeSendMessage(
-        corePtr: Long,
-        recipientId: ByteArray,
-        plaintext: ByteArray,
-        messageType: Int
-    ): ByteArray?
-
-    @JvmStatic
-    external fun nativeGetPowerState(corePtr: Long): Int
-
-    @JvmStatic
-    external fun nativeUpdateBattery(
-        corePtr: Long,
-        levelPercent: Int,
-        isCharging: Boolean
-    )
-
-    @JvmStatic
-    external fun nativeDestroy(corePtr: Long)
+    fun nativeInit(seed: ByteArray, storagePath: String): Long = 0L
+    fun nativeProcessIncoming(corePtr: Long, packet: ByteArray, rssi: Int, timestampUs: Long): ByteArray? = null
+    fun nativeTick(corePtr: Long): ByteArray? = null
+    fun nativeSendMessage(corePtr: Long, recipientId: ByteArray, plaintext: ByteArray, messageType: Int): ByteArray? = null
+    fun nativeGetPowerState(corePtr: Long): Int = PowerState.BALANCED.value
+    fun nativeUpdateBattery(corePtr: Long, levelPercent: Int, isCharging: Boolean) {}
+    fun nativeDestroy(corePtr: Long) {}
 }
 
 enum class PowerState(val value: Int) {
