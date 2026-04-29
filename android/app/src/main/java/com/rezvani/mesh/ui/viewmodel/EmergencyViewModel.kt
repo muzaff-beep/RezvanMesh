@@ -1,12 +1,42 @@
 package com.rezvani.mesh.ui.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.rezvani.mesh.MeshServiceConnection
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
-class EmergencyViewModel : ViewModel() {
-    val uiState = MutableStateFlow(EmergencyUiState())
-    fun updateSeverity(level: Int) { /* TODO */ }
-    fun sendEmergencyAlert() { /* TODO */ }
+class EmergencyViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val _uiState = MutableStateFlow(EmergencyUiState())
+    val uiState: StateFlow<EmergencyUiState> = _uiState.asStateFlow()
+
+    fun updateSeverity(level: Int) {
+        _uiState.value = _uiState.value.copy(selectedSeverity = level)
+    }
+
+    fun sendEmergencyAlert() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Sending)
+            try {
+                val broadcastId = ByteArray(8) { 0xFF.toByte() }
+                val messageText = "EMERGENCY LEVEL ${_uiState.value.selectedSeverity}"
+                val success = MeshServiceConnection.sendTextMessage(broadcastId, messageText)
+                delay(1000)
+                if (success) {
+                    _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Success("Alert sent"))
+                } else {
+                    _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Failed("Send failed"))
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Failed(e.message ?: "Unknown error"))
+            }
+        }
+    }
 }
 
 data class EmergencyUiState(
@@ -17,6 +47,6 @@ data class EmergencyUiState(
 sealed class EmergencySendStatus {
     object Idle : EmergencySendStatus()
     object Sending : EmergencySendStatus()
-    data class Success(val message: String = "") : EmergencySendStatus()
+    data class Success(val message: String) : EmergencySendStatus()
     data class Failed(val message: String) : EmergencySendStatus()
 }
