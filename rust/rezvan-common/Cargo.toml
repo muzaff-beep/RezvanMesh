@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# No external dependencies - pure Rust structs and enums
+sha2 = "0.10"
