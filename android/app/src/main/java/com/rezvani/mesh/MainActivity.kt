@@ -1,19 +1,22 @@
 package com.rezvani.mesh
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.res.Configuration
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.rezvani.mesh.backup.IdentityBackupHelper
@@ -23,12 +26,28 @@ import com.rezvani.mesh.ui.theme.RezvanMeshTheme
 import com.rezvani.mesh.utils.CrashLogger
 import com.rezvani.mesh.utils.LocaleHelper
 import kotlinx.coroutines.launch
-import java.util.*
 
 class MainActivity : ComponentActivity() {
 
     private var meshServiceConnection: MeshServiceConnection? = null
     private val isServiceBound = mutableStateOf(false)
+
+    // Permission launcher
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineGranted || coarseGranted) {
+            // Permission granted, now it's safe to start the service
+            startRadioService()
+        } else {
+            // Permission denied – you may show a warning or still start the service
+            // with a fallback foreground service type (but BLE scanning won't work)
+            Log.w("MainActivity", "Location permission denied – mesh may not function")
+            startRadioService() // optionally start with limited functionality
+        }
+    }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -57,10 +76,24 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLogger.init(this)
-        startRadioService()
+
+        // Check if we already have location permission
+        if (hasLocationPermission()) {
+            startRadioService()
+        } else {
+            // Request permissions – the launcher will start the service when granted
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+
         lifecycleScope.launch {
             ensureIdentityExists()
         }
+
         setContent {
             RezvanMeshTheme {
                 Surface(
@@ -92,15 +125,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private suspend fun ensureIdentityExists() {
         val seed = IdentityBackupHelper.loadSeed(this)
         if (seed == null) {
             Log.i(TAG, "No identity found - onboarding required")
         }
-    }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
     }
 
     companion object {
