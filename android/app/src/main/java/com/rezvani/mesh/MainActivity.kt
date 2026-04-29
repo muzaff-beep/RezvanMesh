@@ -32,20 +32,17 @@ class MainActivity : ComponentActivity() {
     private var meshServiceConnection: MeshServiceConnection? = null
     private val isServiceBound = mutableStateOf(false)
 
-    // Permission launcher
+    // Single permission launcher for ACCESS_FINE_LOCATION only
     private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        if (fineGranted || coarseGranted) {
-            // Permission granted, now it's safe to start the service
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Log.i(TAG, "Location permission granted – starting service")
             startRadioService()
         } else {
-            // Permission denied – you may show a warning or still start the service
-            // with a fallback foreground service type (but BLE scanning won't work)
-            Log.w("MainActivity", "Location permission denied – mesh may not function")
-            startRadioService() // optionally start with limited functionality
+            Log.w(TAG, "Location permission denied – Wi‑Fi Direct will be unavailable")
+            // Still start the service; BLE scanning works on Android 12+ without location
+            startRadioService()
         }
     }
 
@@ -77,17 +74,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         CrashLogger.init(this)
 
-        // Check if we already have location permission
+        // Check if we already have the needed permission (ACCESS_FINE_LOCATION)
         if (hasLocationPermission()) {
             startRadioService()
         } else {
-            // Request permissions – the launcher will start the service when granted
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
+            // Request it – launcher will start service when done
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
         lifecycleScope.launch {
@@ -128,10 +120,7 @@ class MainActivity : ComponentActivity() {
     private fun hasLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private suspend fun ensureIdentityExists() {
