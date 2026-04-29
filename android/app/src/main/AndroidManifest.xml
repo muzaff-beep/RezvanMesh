@@ -8,13 +8,14 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Location permission – required for Wi‑Fi Direct (Android 10+).
-         Only fine location is requested; coarse is implied. -->
+    <!-- Location permission – required for Wi‑Fi Direct (Android 10+) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- Wake lock to keep mesh service alive -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Foreground service base permission (required on all versions) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Permission for connectedDevice foreground service type -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
