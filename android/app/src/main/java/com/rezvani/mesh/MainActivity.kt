@@ -29,20 +29,16 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    private var meshServiceConnection: MeshServiceConnection? = null
     private val isServiceBound = mutableStateOf(false)
 
-    // Single permission launcher for ACCESS_FINE_LOCATION only
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            Log.i(TAG, "Location permission granted – starting service")
             startRadioService()
         } else {
-            Log.w(TAG, "Location permission denied – Wi‑Fi Direct will be unavailable")
-            // Still start the service; BLE scanning works on Android 12+ without location
-            startRadioService()
+            Log.w(TAG, "Precise location permission denied – Wi‑Fi Direct disabled")
+            startRadioService()  // BLE may still work on Android 12+
         }
     }
 
@@ -74,11 +70,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         CrashLogger.init(this)
 
-        // Check if we already have the needed permission (ACCESS_FINE_LOCATION)
         if (hasLocationPermission()) {
             startRadioService()
         } else {
-            // Request it – launcher will start service when done
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
