@@ -2,39 +2,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Bluetooth permissions (modern fine‑grained) -->
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <!-- Bluetooth permissions with neverForLocation (Android 12+) -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Location permissions (required for BLE scanning on older Android) -->
+    <!-- Location permission – required for Wi‑Fi Direct (Android 10+).
+         Only fine location is requested; coarse is implied. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Wake lock to keep mesh service alive -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- Foreground service permissions -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Permission for connectedDevice foreground service type -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
-    <!-- Internet permission (for WiFi Direct sockets) -->
+    <!-- Internet and Wi‑Fi state permissions (for Wi‑Fi Direct sockets) -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- WiFi Direct and network state -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
-
-    <!-- Exact alarm for power state scheduling (Android 14+) -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-
-    <!-- Storage permission for crash logs -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <application
         android:allowBackup="true"
@@ -62,7 +50,7 @@
             android:name=".radio.RezvanRadioService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location|connectedDevice" />
+            android:foregroundServiceType="connectedDevice" />
 
     </application>
 
