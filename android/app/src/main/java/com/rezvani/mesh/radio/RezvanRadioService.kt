@@ -38,10 +38,24 @@ class RezvanRadioService : Service() {
 
     fun getMeshCorePtr(): Long = meshCorePtr
 
+    /**
+     * Called from MainActivity after onboarding is complete.
+     * Supplies the identity seed and starts the mesh engine.
+     */
+    fun initializeMeshEngine(seed: ByteArray) {
+        if (meshCorePtr != 0L) {
+            Log.w(TAG, "Mesh engine already initialised")
+            return
+        }
+        val storagePath = filesDir.absolutePath
+        meshCorePtr = MeshCore.nativeInit(seed, storagePath)
+        Log.i(TAG, "MeshCore initialised, ptr = $meshCorePtr")
+        startPeriodicTick()
+    }
+
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "RezvanRadioService onCreate")
-
         startForegroundWithNotification()
         acquireWakeLock()
         radioController = RadioControllerImpl(this)
@@ -50,20 +64,16 @@ class RezvanRadioService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "RezvanRadioService onStartCommand")
-
         if (!isRunning.get()) {
             isRunning.set(true)
-
             val seed = loadIdentitySeed()
-            val storagePath = filesDir.absolutePath
-
-            meshCorePtr = MeshCore.nativeInit(seed, storagePath)
-            Log.i(TAG, "MeshCore initialized, ptr = $meshCorePtr")
-
-            startPeriodicTick()
-            startWifiServerIfNeeded()
+            if (seed != null) {
+                // Already onboarded – initialise immediately
+                initializeMeshEngine(seed)
+            } else {
+                Log.i(TAG, "No identity seed yet – waiting for onboarding")
+            }
         }
-
         return START_STICKY
     }
 
@@ -71,12 +81,10 @@ class RezvanRadioService : Service() {
         Log.i(TAG, "RezvanRadioService onDestroy")
         isRunning.set(false)
         tickHandler.removeCallbacksAndMessages(null)
-
         if (meshCorePtr != 0L) {
             MeshCore.nativeDestroy(meshCorePtr)
             meshCorePtr = 0
         }
-
         radioController.onDestroy()
         releaseWakeLock()
         super.onDestroy()
@@ -84,13 +92,9 @@ class RezvanRadioService : Service() {
 
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
         if (meshCorePtr == 0L) return
-
         val timestampUs = System.currentTimeMillis() * 1000
         val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
-
-        result?.let { actions ->
-            actionDispatcher.dispatch(actions, radioController)
-        }
+        result?.let { actionDispatcher.dispatch(it, radioController) }
     }
 
     private fun startForegroundWithNotification() {
@@ -129,7 +133,6 @@ class RezvanRadioService : Service() {
                 description = getString(R.string.mesh_channel_description)
                 setShowBadge(false)
             }
-
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
@@ -154,16 +157,13 @@ class RezvanRadioService : Service() {
         tickHandler.post(object : Runnable {
             override fun run() {
                 if (!isRunning.get() || meshCorePtr == 0L) return
-
                 try {
                     val actions = MeshCore.nativeTick(meshCorePtr)
                     actions?.let { actionDispatcher.dispatch(it, radioController) }
-
                     updateBatteryInfo()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in periodic tick", e)
                 }
-
                 tickHandler.postDelayed(this, TICK_INTERVAL_MS)
             }
         })
@@ -174,24 +174,17 @@ class RezvanRadioService : Service() {
         val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
         val status = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-
         val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                          status == BatteryManager.BATTERY_STATUS_FULL
-
         if (level >= 0 && scale > 0 && meshCorePtr != 0L) {
             val percent = (level * 100 / scale)
             MeshCore.nativeUpdateBattery(meshCorePtr, percent, isCharging)
         }
     }
 
-    private fun startWifiServerIfNeeded() {
-    }
-
-    private fun loadIdentitySeed(): ByteArray {
+    private fun loadIdentitySeed(): ByteArray? {
         val prefs = getSharedPreferences(PREFS_IDENTITY, Context.MODE_PRIVATE)
-        val encoded = prefs.getString(KEY_SEED, null)
-            ?: throw IllegalStateException("Identity seed not found. Complete onboarding first.")
-
+        val encoded = prefs.getString(KEY_SEED, null) ?: return null
         return Base64.decode(encoded, Base64.NO_WRAP)
     }
 
