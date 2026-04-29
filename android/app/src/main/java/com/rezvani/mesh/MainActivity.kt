@@ -29,25 +29,27 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    private var boundService: RezvanRadioService? = null
     private val isServiceBound = mutableStateOf(false)
 
+    // Only request ACCESS_FINE_LOCATION
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            startRadioService()
+            Log.i(TAG, "Location permission granted – starting mesh service")
         } else {
-            Log.w(TAG, "Precise location permission denied – Wi‑Fi Direct disabled")
-            startRadioService()  // BLE may still work on Android 12+
+            Log.w(TAG, "Location permission denied – Wi‑Fi Direct disabled")
         }
+        startRadioService()
     }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as? RezvanRadioService.LocalBinder
-            val meshService = binder?.getService()
-            if (meshService != null) {
-                MeshServiceConnection.onServiceConnected(meshService)
+            boundService = binder?.getService()
+            if (boundService != null) {
+                MeshServiceConnection.onServiceConnected(boundService!!)
                 isServiceBound.value = true
                 Log.i(TAG, "RezvanRadioService connected")
             }
@@ -55,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             MeshServiceConnection.onServiceDisconnected()
+            boundService = null
             isServiceBound.value = false
             Log.i(TAG, "RezvanRadioService disconnected")
         }
@@ -71,8 +74,10 @@ class MainActivity : ComponentActivity() {
         CrashLogger.init(this)
 
         if (hasLocationPermission()) {
+            // Already granted, start immediately
             startRadioService()
         } else {
+            // Request – launcher will start service after result
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
@@ -96,6 +101,20 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unbindRadioService()
+    }
+
+    /**
+     * Called when the onboarding flow successfully creates an identity.
+     * The service is already running; this hands the seed to initialise the mesh engine.
+     */
+    fun onOnboardingComplete() {
+        val seed = IdentityBackupHelper.loadSeed(this)
+        if (seed != null) {
+            boundService?.initializeMeshEngine(seed)
+            Log.i(TAG, "Mesh engine initialised with identity seed")
+        } else {
+            Log.w(TAG, "onOnboardingComplete called but no seed found")
+        }
     }
 
     private fun startRadioService() {
