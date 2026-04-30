@@ -1,5 +1,4 @@
-use rezvan_crypto::{IdentityKeypair, CryptoProvider, SessionState, CryptoError};
-
+pub use rezvan_crypto::{IdentityKeypair, CryptoProvider, SessionState, CryptoError};
 /// A mock implementation of CryptoProvider for Team A's initial development.
 /// This performs no real cryptography – it's only for testing routing, power,
 /// and JNI integration. Replace with SodiumCryptoProvider before production.
