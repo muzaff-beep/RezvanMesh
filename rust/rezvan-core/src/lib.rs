@@ -4,7 +4,7 @@ use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jint, jlong};
 use jni::JNIEnv;
 
-use rezvan_crypto::{CryptoProvider, MockCryptoProvider};
+use crate::crypto::MockCryptoProvider;
 
 mod engine;
 mod routing;
