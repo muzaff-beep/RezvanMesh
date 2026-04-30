@@ -2,75 +2,129 @@ package com.rezvani.mesh.backup
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.util.Log
 import java.net.NetworkInterface
-import java.security.MessageDigest
-import javax.crypto.spec.SecretKeySpec
+import java.util.*
 import javax.crypto.Mac
-import javax.crypto.spec.HKDFParameterSpec
-import java.security.SecureRandom
-import javax.crypto.KeyGenerator
-// For HKDF we use the Android Keystore, but a simple HMAC‑SHA256 expansion works fine.
+import javax.crypto.spec.SecretKeySpec
 
 object MacIdentityProvider {
     private const val TAG = "MacIdentityProvider"
-    private const val SALT = "RezvanMeshFixedSalt2026!"  // fixed, can be public
-    private const val INFO = "identity-seed"
+    private const val HKDF_SALT = "RezvanMeshFixedSalt2026!"
+    private const val HKDF_INFO = "identity-seed"
+    private const val SEED_LENGTH = 32
 
+    /**
+     * Derive a 32‑byte identity seed from the device's factory MAC address.
+     * Returns null if no valid MAC could be obtained.
+     */
     fun deriveSeed(context: Context): ByteArray? {
-        val mac = getDeviceMac(context) ?: return null
-        // Use HKDF‑SHA256 to expand the MAC into a 32‑byte seed.
-        val hkdf = Mac.getInstance("HmacSHA256")
-        hkdf.init(SecretKeySpec(SALT.toByteArray(), "HmacSHA256"))
-        val prk = hkdf.doFinal(mac.toByteArray())
-        // Expand (simplified HKDF‑Expand for fixed 32‑byte length)
-        val output = ByteArray(32)
-        val infoBytes = INFO.toByteArray()
-        // T(1) = HMAC(PRK, info || 0x01)
-        val expandMac = Mac.getInstance("HmacSHA256")
-        expandMac.init(SecretKeySpec(prk, "HmacSHA256"))
-        expandMac.update(infoBytes)
-        expandMac.update(1.toByte())
-        val t1 = expandMac.doFinal()
-        System.arraycopy(t1, 0, output, 0, 32)
-        return output
+        val mac = getMacAddress(context)
+        if (mac == null) {
+            Log.e(TAG, "Could not obtain MAC address")
+            return null
+        }
+        Log.i(TAG, "Deriving seed from MAC: $mac")
+        return hkdfSha256(mac.toByteArray(Charsets.UTF_8), HKDF_SALT.toByteArray(), HKDF_INFO.toByteArray(), SEED_LENGTH)
     }
 
-    private fun getDeviceMac(context: Context): String? {
-        // Try WifiInfo first (works on most Android 10+ devices)
+    /**
+     * Save the derived seed to EncryptedSharedPreferences.
+     */
+    fun saveSeed(context: Context, seed: ByteArray) {
+        IdentityBackupHelper.saveSeed(context, seed)
+    }
+
+    /**
+     * Load the previously saved seed.
+     */
+    fun loadSeed(context: Context): ByteArray? {
+        return IdentityBackupHelper.loadSeed(context)
+    }
+
+    /**
+     * Retrieve the factory MAC address.
+     * Primary: WifiManager.connectionInfo.macAddress (needs LOCAL_MAC_ADDRESS).
+     * Fallback: NetworkInterface.getByName("wlan0").hardwareAddress.
+     * Filters out randomised MACs (02:00:00:00:00:00).
+     */
+    private fun getMacAddress(context: Context): String? {
+        // Primary: WifiManager
         try {
-            val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            val wifiInfo = wifiManager?.connectionInfo
-            val mac = wifiInfo?.macAddress
-            if (mac != null && mac != "02:00:00:00:00:00" && mac.isNotEmpty()) {
-                Log.i(TAG, "Using WiFi MAC: $mac")
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            val info = wifiManager?.connectionInfo
+            val mac = info?.macAddress
+            if (!mac.isNullOrBlank() && mac != "02:00:00:00:00:00" && mac != "00:00:00:00:00:00") {
                 return mac
             }
-        } catch (e: SecurityException) { }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "LOCAL_MAC_ADDRESS permission not granted")
+        } catch (e: Exception) {
+            Log.w(TAG, "WifiManager MAC retrieval failed", e)
+        }
 
-        // Fallback to NetworkInterface
-        try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
-                if (iface.name.equals("wlan0", true)) {
-                    val hwAddr = iface.hardwareAddress
-                    if (hwAddr != null && hwAddr.isNotEmpty()) {
-                        val mac = hwAddr.joinToString(":") { "%02X".format(it) }
-                        Log.i(TAG, "Using wlan0 MAC: $mac")
-                        return mac
+        // Fallback: NetworkInterface
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            try {
+                val interfaces = NetworkInterface.getNetworkInterfaces()
+                while (interfaces.hasMoreElements()) {
+                    val iface = interfaces.nextElement()
+                    if (iface.name.equals("wlan0", ignoreCase = true)) {
+                        val hardware = iface.hardwareAddress
+                        if (hardware != null && hardware.size == 6) {
+                            val mac = hardware.joinToString(":") { "%02x".format(it) }
+                            if (mac != "02:00:00:00:00:00" && mac != "00:00:00:00:00:00") {
+                                return mac
+                            }
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "NetworkInterface MAC retrieval failed", e)
             }
-        } catch (e: Exception) { }
+        }
+
+        Log.e(TAG, "All MAC retrieval methods failed")
         return null
     }
 
-    fun saveSeed(context: Context, seed: ByteArray) {
-        IdentityBackupHelper.saveSeed(context, seed) // reuse existing secure storage
+    /**
+     * HKDF‑SHA256 (RFC 5869) — simplified implementation.
+     *
+     * @param ikm   Input keying material (MAC address as UTF‑8 bytes).
+     * @param salt  Fixed application salt.
+     * @param info  Context‑specific label.
+     * @param length Desired output length in bytes.
+     */
+    private fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
+        // Step 1 — Extract: PRK = HMAC‑SHA256(salt, IKM)
+        val prk = hmacSha256(salt, ikm)
+
+        // Step 2 — Expand
+        val output = ByteArray(length)
+        val n = (length + 31) / 32 // ceil(length / 32)
+        var t = ByteArray(0)
+
+        var offset = 0
+        for (i in 1..n) {
+            val input = ByteArray(t.size + info.size + 1)
+            System.arraycopy(t, 0, input, 0, t.size)
+            System.arraycopy(info, 0, input, t.size, info.size)
+            input[input.size - 1] = i.toByte()
+            t = hmacSha256(prk, input)
+            val copyLen = minOf(t.size, length - offset)
+            System.arraycopy(t, 0, output, offset, copyLen)
+            offset += copyLen
+            if (offset >= length) break
+        }
+        return output
     }
 
-    fun loadSeed(context: Context): ByteArray? {
-        return IdentityBackupHelper.loadSeed(context)
+    private fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        val keySpec = SecretKeySpec(key, "HmacSHA256")
+        mac.init(keySpec)
+        return mac.doFinal(data)
     }
 }
