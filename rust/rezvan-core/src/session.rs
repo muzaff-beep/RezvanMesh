@@ -1,6 +1,6 @@
 // src/session.rs
 
-use crate::crypto::{CryptoError, CryptoProvider, IdentityKeypair, PreKeyBundle, SessionState};
+use crate::crypto::{CryptoError, CryptoProvider, IdentityKeypair, SessionState};
 use crate::routing::NodeId;
 use std::collections::HashMap;
 
