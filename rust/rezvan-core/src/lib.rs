@@ -1,99 +1,64 @@
-// src/lib.rs
-
-pub mod action;
-pub mod crypto;
-pub mod engine;
-pub mod power;
-pub mod routing;
-pub mod session;
-
-use engine::MeshEngine;
 use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jint, jlong};
 use jni::JNIEnv;
-use std::ptr;
 
-// Thread-local storage for the last error message to pass to Java.
-thread_local! {
-    static LAST_ERROR: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
-}
+use crate::crypto::MockCryptoProvider;
 
-fn set_last_error(err: String) {
-    LAST_ERROR.with(|e| {
-        *e.borrow_mut() = Some(err);
-    });
-}
+mod engine;
+mod routing;
+mod power;
+mod session;
+mod crypto;
+mod action;
 
-fn take_last_error() -> Option<String> {
-    LAST_ERROR.with(|e| e.borrow_mut().take())
-}
+use engine::MeshEngine;
 
-/// Convert a Rust `Vec<u8>` to a Java byte array, or null if empty.
-fn vec_to_jbytearray(env: &JNIEnv, data: Vec<u8>) -> jbyteArray {
-    if data.is_empty() {
-        return ptr::null_mut();
-    }
-    match env.byte_array_from_slice(&data) {
-        Ok(arr) => arr.into_raw(),
-        Err(e) => {
-            set_last_error(format!("Failed to create byte array: {}", e));
-            ptr::null_mut()
-        }
-    }
-}
-
-/// Convert a Java byte array to a Rust `Vec<u8>`.
-fn jbytearray_to_vec(env: &JNIEnv, arr: JByteArray) -> Result<Vec<u8>, String> {
-    if arr.is_null() {
-        return Err("Byte array is null".to_string());
-    }
-    let size = env.get_array_length(arr).map_err(|e| format!("{:?}", e))?;
-    let mut buf = vec![0u8; size as usize];
-    env.get_byte_array_region(arr, 0, &mut buf)
-        .map_err(|e| format!("{:?}", e))?;
+fn jbytearray_to_vec(env: &mut JNIEnv, array: &JByteArray) -> Result<Vec<u8>, String> {
+    let size = env.get_array_length(array).map_err(|e| e.to_string())? as usize;
+    let mut buf = vec![0u8; size];
+    env.get_byte_array_region(array, 0, &mut buf)
+        .map_err(|e| e.to_string())?;
     Ok(buf)
 }
 
+fn jbytearray_to_array<const N: usize>(env: &mut JNIEnv, array: &JByteArray) -> Result<[u8; N], String> {
+    let bytes = jbytearray_to_vec(env, array)?;
+    if bytes.len() != N {
+        return Err(format!("expected {} bytes, got {}", N, bytes.len()));
+    }
+    let mut arr = [0u8; N];
+    arr.copy_from_slice(&bytes);
+    Ok(arr)
+}
+
+fn vec_to_jbytearray(env: &mut JNIEnv, data: &[u8]) -> Result<jbyteArray, String> {
+    let arr = env.byte_array_from_slice(data).map_err(|e| e.to_string())?;
+    Ok(arr.into_raw())
+}
+
 #[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeInit(
-    env: JNIEnv,
+pub extern "C" fn Java_com_rezvani_mesh_MeshCore_nativeInit(
+    mut env: JNIEnv,
     _class: JClass,
     seed: JByteArray,
-    storage_path: JString,
+    _storage_path: JString,
 ) -> jlong {
-    let seed_vec = match jbytearray_to_vec(&env, seed) {
-        Ok(v) => v,
+    let seed_array = match jbytearray_to_array::<32>(&mut env, &seed) {
+        Ok(s) => s,
         Err(e) => {
-            set_last_error(e);
-            return 0;
-        }
-    };
-    if seed_vec.len() != 32 {
-        set_last_error("Seed must be 32 bytes".to_string());
-        return 0;
-    }
-    let seed_array: [u8; 32] = match seed_vec.try_into() {
-        Ok(arr) => arr,
-        Err(_) => {
-            set_last_error("Seed length mismatch".to_string());
+            let _ = env.throw_new("java/lang/IllegalArgumentException", e);
             return 0;
         }
     };
 
-    let path: String = env
-        .get_string(&storage_path)
-        .expect("Couldn't get storage path")
-        .into();
-
-    // Create a mock crypto provider for now; will be replaced with Team B's impl.
-    let crypto = Box::new(crypto::MockCryptoProvider);
-    let engine = MeshEngine::new(&seed_array, crypto, &path);
+    let crypto = Box::new(MockCryptoProvider {});
+    let engine = MeshEngine::new(&seed_array, crypto);
     Box::into_raw(Box::new(engine)) as jlong
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeProcessIncoming(
-    env: JNIEnv,
+pub extern "C" fn Java_com_rezvani_mesh_MeshCore_nativeProcessIncoming(
+    mut env: JNIEnv,
     _class: JClass,
     core_ptr: jlong,
     packet: JByteArray,
@@ -101,33 +66,51 @@ pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeProcessIncoming(
     timestamp_us: jlong,
 ) -> jbyteArray {
     let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
-    let packet_data = match jbytearray_to_vec(&env, packet) {
-        Ok(v) => v,
+    let bytes = match jbytearray_to_vec(&mut env, &packet) {
+        Ok(b) => b,
         Err(e) => {
-            set_last_error(e);
-            return ptr::null_mut();
+            let _ = env.throw_new("java/lang/IllegalArgumentException", e);
+            return std::ptr::null_mut();
         }
     };
-    let (_decrypted, actions) = engine.process_incoming(&packet_data, rssi, timestamp_us as u64);
-    let serialized = action::serialize_actions(&actions);
-    vec_to_jbytearray(&env, serialized)
+
+    let (decrypted_message, actions) = engine.process_incoming(&bytes, rssi, timestamp_us as u64);
+
+    let mut all_actions = actions;
+    if let Some(msg) = decrypted_message {
+        all_actions.push(action::Action::NotifyUi {
+            decrypted_message: msg,
+        });
+    }
+
+    if all_actions.is_empty() {
+        return std::ptr::null_mut();
+    }
+
+    let serialized = action::serialize_actions(&all_actions);
+    vec_to_jbytearray(&mut env, &serialized).unwrap_or(std::ptr::null_mut())
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeTick(
-    env: JNIEnv,
+pub extern "C" fn Java_com_rezvani_mesh_MeshCore_nativeTick(
+    mut env: JNIEnv,
     _class: JClass,
     core_ptr: jlong,
 ) -> jbyteArray {
     let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
     let actions = engine.tick();
+
+    if actions.is_empty() {
+        return std::ptr::null_mut();
+    }
+
     let serialized = action::serialize_actions(&actions);
-    vec_to_jbytearray(&env, serialized)
+    vec_to_jbytearray(&mut env, &serialized).unwrap_or(std::ptr::null_mut())
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeSendMessage(
-    env: JNIEnv,
+pub extern "C" fn Java_com_rezvani_mesh_MeshCore_nativeSendMessage(
+    mut env: JNIEnv,
     _class: JClass,
     core_ptr: jlong,
     recipient_id: JByteArray,
@@ -135,34 +118,34 @@ pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeSendMessage(
     message_type: jint,
 ) -> jbyteArray {
     let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
-    let recipient_vec = match jbytearray_to_vec(&env, recipient_id) {
-        Ok(v) => v,
+
+    let recipient = match jbytearray_to_array::<8>(&mut env, &recipient_id) {
+        Ok(r) => r,
         Err(e) => {
-            set_last_error(e);
-            return ptr::null_mut();
+            let _ = env.throw_new("java/lang/IllegalArgumentException", e);
+            return std::ptr::null_mut();
         }
     };
-    let recipient: [u8; 8] = match recipient_vec.try_into() {
-        Ok(arr) => arr,
-        Err(_) => {
-            set_last_error("Recipient ID must be 8 bytes".to_string());
-            return ptr::null_mut();
-        }
-    };
-    let plain = match jbytearray_to_vec(&env, plaintext) {
-        Ok(v) => v,
+
+    let plain = match jbytearray_to_vec(&mut env, &plaintext) {
+        Ok(p) => p,
         Err(e) => {
-            set_last_error(e);
-            return ptr::null_mut();
+            let _ = env.throw_new("java/lang/IllegalArgumentException", e);
+            return std::ptr::null_mut();
         }
     };
+
     let actions = engine.send_message(&recipient, &plain, message_type as u8);
+    if actions.is_empty() {
+        return std::ptr::null_mut();
+    }
+
     let serialized = action::serialize_actions(&actions);
-    vec_to_jbytearray(&env, serialized)
+    vec_to_jbytearray(&mut env, &serialized).unwrap_or(std::ptr::null_mut())
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeGetPowerState(
+pub extern "C" fn Java_com_rezvani_mesh_MeshCore_nativeGetPowerState(
     _env: JNIEnv,
     _class: JClass,
     core_ptr: jlong,
@@ -172,7 +155,7 @@ pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeGetPowerState(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeUpdateBattery(
+pub extern "C" fn Java_com_rezvani_mesh_MeshCore_nativeUpdateBattery(
     _env: JNIEnv,
     _class: JClass,
     core_ptr: jlong,
@@ -184,14 +167,15 @@ pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeUpdateBattery(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeDestroy(
+pub extern "C" fn Java_com_rezvani_mesh_MeshCore_nativeDestroy(
     _env: JNIEnv,
     _class: JClass,
     core_ptr: jlong,
 ) {
-    if core_ptr != 0 {
-        unsafe {
-            let _ = Box::from_raw(core_ptr as *mut MeshEngine);
-        }
+    if core_ptr == 0 {
+        return;
     }
-}
+    unsafe {
+        let _ = Box::from_raw(core_ptr as *mut MeshEngine);
+    }
+        }
