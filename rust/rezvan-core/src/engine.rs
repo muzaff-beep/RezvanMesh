@@ -3,7 +3,7 @@ use crate::power::{PowerState, compute_state};
 use crate::routing::RoutingTable;
 use crate::session::SessionManager;
 use rezvan_common::{DecryptedMessage, NodeId};
-use rezvan_crypto::{CryptoProvider, IdentityKeypair};
+use rezvan_crypto::CryptoProvider;
 
 pub struct MeshEngine {
     crypto: Box<dyn CryptoProvider>,
@@ -19,23 +19,6 @@ pub struct MeshEngine {
     node_id: NodeId,
 }
 
-// Helper trait to enable cloning of Box<dyn CryptoProvider>
-trait CloneableCrypto: CryptoProvider {
-    fn clone_box(&self) -> Box<dyn CryptoProvider>;
-}
-
-impl<T: CryptoProvider + Clone + 'static> CloneableCrypto for T {
-    fn clone_box(&self) -> Box<dyn CryptoProvider> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn CryptoProvider> {
-    fn clone(&self) -> Box<dyn CryptoProvider> {
-        (**self).clone_box()
-    }
-}
-
 impl MeshEngine {
     pub fn new(seed: &[u8; 32], crypto: Box<dyn CryptoProvider>) -> Self {
         let identity = crypto.generate_identity(seed);
@@ -43,7 +26,7 @@ impl MeshEngine {
 
         Self {
             routing: RoutingTable::new(node_id),
-            sessions: SessionManager::new(crypto.clone(), identity),
+            sessions: SessionManager::new(crypto.clone_box(), identity),
             power_state: PowerState::Active,
             user_override: None,
             battery_level: 100,
@@ -58,13 +41,10 @@ impl MeshEngine {
 
     pub fn tick(&mut self) -> Vec<Action> {
         let mut actions = Vec::new();
-
-        // Generate OGM advertisement if enough time has elapsed (every 5 seconds)
-        self.ogm_sequence = self.ogm_sequence.wrapping_add(1);
+        self.adv_sequence = self.adv_sequence.wrapping_add(1);
         actions.push(Action::SendBleAdvertisement {
             data: self.build_advertisement(),
         });
-
         actions
     }
 
@@ -84,17 +64,13 @@ impl MeshEngine {
         };
 
         match header.packet_type {
-            // OGM
             0x01 => {
                 let _ = self.routing.process_ogm(packet, rssi);
                 (None, Vec::new())
             }
-            // Data (unicast or broadcast)
             0x02 => {
-                // Let the session manager attempt decryption
                 if let Some(payload) = packet.get(12..) {
                     if let Ok(plain) = self.sessions.decrypt(&header.originator, payload) {
-                        // Construct a DecryptedMessage (simplified)
                         let msg = DecryptedMessage {
                             conversation_id: [0u8; 16],
                             sender_id: header.originator,
@@ -102,15 +78,11 @@ impl MeshEngine {
                             message_type: 0,
                             content: plain,
                         };
-                        (Some(msg), Vec::new())
-                    } else {
-                        (None, Vec::new())
+                        return (Some(msg), Vec::new());
                     }
-                } else {
-                    (None, Vec::new())
                 }
+                (None, Vec::new())
             }
-            // X3DH handshake
             0x04 => {
                 if let Some(payload) = packet.get(12..) {
                     let _ = self.sessions.process_inbound_handshake(&header.originator, payload);
@@ -125,20 +97,15 @@ impl MeshEngine {
         &mut self,
         recipient: &NodeId,
         plaintext: &[u8],
-        msg_type: u8,
+        _msg_type: u8,
     ) -> Vec<Action> {
         let mut actions = Vec::new();
 
         let encrypted = match self.sessions.encrypt(recipient, plaintext) {
             Ok(cipher) => cipher,
-            Err(_) => {
-                // Session missing — attempt to establish one via X3DH
-                // For now, just return an empty action list
-                return actions;
-            }
+            Err(_) => return actions,
         };
 
-        // Build a minimal data packet header
         let header = rezvan_common::MeshPacketHeader {
             version: 0x01,
             packet_type: 0x02,
@@ -154,7 +121,7 @@ impl MeshEngine {
         packet.extend_from_slice(&encrypted);
 
         actions.push(Action::SendBlePacket {
-            mac: [0xFFu8; 6], // broadcast MAC placeholder
+            mac: [0xFFu8; 6],
             data: packet,
         });
 
@@ -176,14 +143,27 @@ impl MeshEngine {
         adv[0] = 0x52;
         adv[1] = 0x56;
         adv[2..10].copy_from_slice(&self.node_id);
-        // Flags: relay + wifi capable (4 + 8)
         adv[10] = 0x04 | 0x08;
         adv[11] = self.battery_level;
         let seq = (self.adv_sequence as u16).to_le_bytes();
         adv[12..14].copy_from_slice(&seq);
-        // Channel mask: zero (no active channels for now)
-        // Reserved: 2 bytes zero
-        // Padding: 11 bytes zero
         adv
     }
 }
+
+// helper trait for cloning Box<dyn CryptoProvider>
+trait CryptoProviderClone {
+    fn clone_box(&self) -> Box<dyn CryptoProvider>;
+}
+
+impl<T: CryptoProvider + Clone + 'static> CryptoProviderClone for T {
+    fn clone_box(&self) -> Box<dyn CryptoProvider> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn CryptoProvider> {
+    fn clone(&self) -> Box<dyn CryptoProvider> {
+        (**self).clone_box()
+    }
+                }
