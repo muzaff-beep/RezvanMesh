@@ -4,9 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.ui.screens.*
-import com.rezvani.mesh.ui.viewmodel.OnboardingViewModel
 
 @Composable
 fun NavGraph(
@@ -29,10 +27,13 @@ fun NavGraph(
 
         composable("chats") {
             ChatsScreen(
-                onChatClick = { conversationId ->
+                onConversationClick = { conversationId ->
                     navController.navigate("chat/$conversationId")
                 },
-                onChannelsClick = {
+                onNewMessageClick = {
+                    // navigate to new message/contact picker
+                },
+                onNewChannelClick = {
                     navController.navigate("channels")
                 },
                 onContactsClick = {
@@ -51,31 +52,37 @@ fun NavGraph(
             val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
             ChatDetailScreen(
                 conversationId = conversationId,
-                onBack = { navController.popBackStack() }
+                contactName = "", // placeholder, real name from ViewModel
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable("channels") {
             ChannelsScreen(
-                onBack = { navController.popBackStack() }
+                onChannelClick = { channelId -> /* handle channel click */ },
+                onCreateChannel = { /* show create channel dialog */ },
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable("contacts") {
             ContactsScreen(
-                onBack = { navController.popBackStack() }
+                onContactClick = { contactId -> /* open chat with contact */ },
+                onAddContact = { /* show add contact dialog */ },
+                onScanQrCode = { /* launch QR scanner */ },
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable("emergency") {
             EmergencyScreen(
-                onBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable("settings") {
             SettingsScreen(
-                onBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }
