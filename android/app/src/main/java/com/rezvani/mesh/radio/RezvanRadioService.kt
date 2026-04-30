@@ -38,10 +38,6 @@ class RezvanRadioService : Service() {
 
     fun getMeshCorePtr(): Long = meshCorePtr
 
-    /**
-     * Called from MainActivity after onboarding is complete.
-     * Supplies the identity seed and starts the mesh engine.
-     */
     fun initializeMeshEngine(seed: ByteArray) {
         if (meshCorePtr != 0L) {
             Log.w(TAG, "Mesh engine already initialised")
@@ -66,12 +62,15 @@ class RezvanRadioService : Service() {
         Log.i(TAG, "RezvanRadioService onStartCommand")
         if (!isRunning.get()) {
             isRunning.set(true)
-            val seed = loadIdentitySeed()
-            if (seed != null) {
-                // Already onboarded – initialise immediately
-                initializeMeshEngine(seed)
-            } else {
-                Log.i(TAG, "No identity seed yet – waiting for onboarding")
+            try {
+                val seed = loadIdentitySeed()
+                if (seed != null) {
+                    initializeMeshEngine(seed)
+                } else {
+                    Log.i(TAG, "No identity seed yet – waiting for onboarding")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize mesh engine", e)
             }
         }
         return START_STICKY
