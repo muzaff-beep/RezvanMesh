@@ -11,19 +11,25 @@
 
     <!-- Chats -->
     <string name="chats_title">گفتگوها</string>
+    <string name="chats">گفتگوها</string>
     <string name="new_message">پیام جدید</string>
     <string name="new_channel">کانال جدید</string>
+    <string name="new_conversation">گفتگوی جدید</string>
     <string name="no_conversations_yet">هنوز گفتگویی وجود ندارد</string>
     <string name="start_conversation">برای شروع گفتگو + را بزنید</string>
     <string name="no_conversations">هنوز گفتگویی وجود ندارد.\nبرای شروع + را بزنید.</string>
     <string name="search_contacts">جستجوی مخاطبین…</string>
+    <string name="emergency">اضطراری</string>
 
     <!-- Chat Detail -->
     <string name="type_message">پیام خود را بنویسید…</string>
     <string name="send">ارسال</string>
+    <string name="attach_file">پیوست فایل</string>
+    <string name="no_messages_yet">هنوز پیامی وجود ندارد. گفتگو را شروع کنید!</string>
 
     <!-- Channels -->
     <string name="channels_title">کانال‌ها</string>
+    <string name="channels">کانال‌ها</string>
     <string name="channel_list">لیست کانال‌ها</string>
     <string name="join_channel">عضویت در کانال</string>
     <string name="enter_channel_password">رمز عبور کانال را وارد کنید</string>
@@ -31,6 +37,14 @@
     <string name="hide_password">مخفی کردن رمز</string>
     <string name="show_password">نمایش رمز</string>
     <string name="join">عضویت</string>
+    <string name="refresh">تازه‌سازی</string>
+    <string name="create_channel">ایجاد کانال</string>
+    <string name="no_channels_found">کانالی پیدا نشد</string>
+    <string name="scan_for_channels">اسکن برای کانال‌های نزدیک</string>
+    <string name="private_channel">کانال خصوصی</string>
+    <string name="public_channel">کانال عمومی</string>
+    <string name="members_count">%d عضو</string>
+    <string name="private_caps">خصوصی</string>
 
     <!-- Contacts -->
     <string name="contacts_title">مخاطبین</string>
