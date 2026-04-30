@@ -1,7 +1,15 @@
+package com.rezvani.mesh.ui.viewmodel
+
+import android.content.Context
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
+import com.rezvani.mesh.backup.IdentityBackupHelper
+import com.rezvani.mesh.ui.screens.OnboardingStep
+import com.rezvani.mesh.ui.screens.OnboardingUiState
 
 class OnboardingViewModel : ViewModel() {
+    
     private val _uiState = mutableStateOf(OnboardingUiState())
     val uiState: State<OnboardingUiState> = _uiState
 
@@ -64,10 +72,13 @@ class OnboardingViewModel : ViewModel() {
     }
 
     fun toggleConfirmBackup() {
-        _uiState.value = _uiState.value.copy(hasConfirmedBackup = !_uiState.value.hasConfirmedBackup)
+        _uiState.value = _uiState.value.copy(
+            hasConfirmedBackup = !_uiState.value.hasConfirmedBackup
+        )
     }
 
     fun confirmBackup() {
-        // Seed is already saved – mark onboarding as complete
+        // Seed is already saved – mark onboarding as complete in prefs
+        // The actual service start is triggered by the completion callback
     }
 }
