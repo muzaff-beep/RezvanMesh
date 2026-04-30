@@ -5,9 +5,6 @@ pub mod ratchet;
 pub mod sender_key;
 pub mod hkdf;
 
-use identity::IdentityKeypair;
-use x3dh::{CryptoError, SessionState};
-
 pub use identity::IdentityKeypair;
 pub use x3dh::{CryptoError, SessionState};
 
@@ -92,4 +89,4 @@ impl CryptoProvider for SodiumCryptoProvider {
     fn random_bytes(&self, len: usize) -> Vec<u8> {
         sodiumoxide::randombytes::randombytes(len)
     }
-        }
+}
