@@ -25,7 +25,7 @@ fn generate_ephemeral_ratchet_keypair() -> ([u8; 32], [u8; 32]) {
     let mut private = [0u8; 32];
     private.copy_from_slice(&sk);
     let scalar = scalarmult::Scalar(private);
-    let public = scalarmult::scalarmult_base(&scalar).unwrap();
+    let public = scalarmult::scalarmult_base(&scalar);
     (private, public.0)
 }
 
@@ -47,7 +47,6 @@ pub fn ratchet_encrypt(
     message.extend_from_slice(&nonce.0);
     message.extend_from_slice(&ciphertext);
 
-    // Ratchet step: generate new sending key pair
     let (new_private, new_public) = generate_ephemeral_ratchet_keypair();
     if let Some(recv_public) = session.receiving_ratchet_public.take() {
         let dh_output = dh_ratchet(&session.sending_ratchet_private, &recv_public)?;
@@ -55,14 +54,10 @@ pub fn ratchet_encrypt(
         combined.extend_from_slice(&dh_output);
         combined.extend_from_slice(&session.root_key);
         let new_root = hkdf::hkdf_sha256(&combined, &[], b"RezvanRootUpdate", 32);
-        let mut root_key = [0u8; 32];
-        root_key.copy_from_slice(&new_root);
-        session.root_key = root_key;
+        session.root_key.copy_from_slice(&new_root);
 
-        let chain_input = hkdf::hkdf_sha256(&[], &root_key, b"RezvanChain", 32);
-        let mut sending_chain_key = [0u8; 32];
-        sending_chain_key.copy_from_slice(&chain_input);
-        session.sending_chain_key = sending_chain_key;
+        let chain_input = hkdf::hkdf_sha256(&[], &session.root_key, b"RezvanChain", 32);
+        session.sending_chain_key.copy_from_slice(&chain_input);
     }
 
     session.sending_ratchet_private = new_private;
@@ -87,7 +82,6 @@ pub fn ratchet_decrypt(
     let nonce = xchacha20poly1305_ietf::Nonce(nonce_bytes);
     let encrypted = &ciphertext[60..];
 
-    // Check if the sender has ratcheted
     let need_ratchet = session.receiving_ratchet_public.map_or(true, |pk| pk != their_ratchet_public);
 
     if need_ratchet {
@@ -129,4 +123,4 @@ pub fn ratchet_decrypt(
         Ok(plaintext) => Ok(plaintext),
         Err(_) => Err(CryptoError::DecryptionFailed),
     }
-    }
+            }
