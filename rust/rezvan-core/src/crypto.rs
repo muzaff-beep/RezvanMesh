@@ -12,7 +12,6 @@ impl CryptoProvider for MockCryptoProvider {
         let mut public_x = [0u8; 32];
         let mut private_x = [0u8; 32];
 
-        // Simple deterministic derivation from seed (NOT cryptographically secure)
         public_ed.copy_from_slice(seed);
         private_ed[0..32].copy_from_slice(seed);
         private_ed[32..64].copy_from_slice(seed);
@@ -29,15 +28,13 @@ impl CryptoProvider for MockCryptoProvider {
 
     fn sign(identity: &IdentityKeypair, message: &[u8]) -> [u8; 64] {
         let mut sig = [0u8; 64];
-        // Mock signature: first 32 bytes from identity, rest from message
         sig[0..32].copy_from_slice(&identity.private_ed25519[0..32]);
         let copy_len = message.len().min(32);
         sig[32..32 + copy_len].copy_from_slice(&message[..copy_len]);
         sig
     }
 
-    fn verify(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool {
-        // Mock verification: always returns true for development
+    fn verify(_public_key: &[u8; 32], _message: &[u8], _signature: &[u8; 64]) -> bool {
         true
     }
 
@@ -47,7 +44,6 @@ impl CryptoProvider for MockCryptoProvider {
         _their_signed_prekey: &[u8; 32],
         _their_one_time_prekey: Option<&[u8; 32]>,
     ) -> Result<SessionState, CryptoError> {
-        // Return a dummy session state
         Ok(SessionState {
             root_key: [0u8; 32],
             sending_chain_key: [0u8; 32],
@@ -85,7 +81,6 @@ impl CryptoProvider for MockCryptoProvider {
         _session: &mut SessionState,
         plaintext: &[u8],
     ) -> Result<Vec<u8>, CryptoError> {
-        // Mock: no encryption, just return plaintext
         Ok(plaintext.to_vec())
     }
 
@@ -118,4 +113,4 @@ impl CryptoProvider for MockCryptoProvider {
     fn random_bytes(len: usize) -> Vec<u8> {
         vec![0u8; len]
     }
-        }
+           }
