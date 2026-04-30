@@ -23,7 +23,6 @@ import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.ui.navigation.NavGraph
 import com.rezvani.mesh.ui.theme.RezvanMeshTheme
-import com.rezvani.mesh.utils.CrashLogger
 import com.rezvani.mesh.utils.LocaleHelper
 import kotlinx.coroutines.launch
 
@@ -32,7 +31,6 @@ class MainActivity : ComponentActivity() {
     private var boundService: RezvanRadioService? = null
     private val isServiceBound = mutableStateOf(false)
 
-    // Only request ACCESS_FINE_LOCATION
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -71,14 +69,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        CrashLogger.init(this)
 
-        if (hasLocationPermission()) {
-            // Already granted, start immediately
-            startRadioService()
-        } else {
-            // Request – launcher will start service after result
-            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        lifecycleScope.launch {
+            val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
+            if (seed != null && hasLocationPermission()) {
+                startRadioService()
+            } else if (!hasLocationPermission()) {
+                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
         }
 
         lifecycleScope.launch {
@@ -103,10 +101,6 @@ class MainActivity : ComponentActivity() {
         unbindRadioService()
     }
 
-    /**
-     * Called when the onboarding flow successfully creates an identity.
-     * The service is already running; this hands the seed to initialise the mesh engine.
-     */
     fun onOnboardingComplete() {
         val seed = IdentityBackupHelper.loadSeed(this)
         if (seed != null) {
@@ -118,14 +112,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startRadioService() {
-        val intent = Intent(this, RezvanRadioService::class.java)
-        startForegroundService(intent)
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        try {
+            val intent = Intent(this, RezvanRadioService::class.java)
+            startForegroundService(intent)
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start radio service", e)
+        }
     }
 
     private fun unbindRadioService() {
         if (isServiceBound.value) {
-            unbindService(serviceConnection)
+            try {
+                unbindService(serviceConnection)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to unbind radio service", e)
+            }
             isServiceBound.value = false
         }
     }
