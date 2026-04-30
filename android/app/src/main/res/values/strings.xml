@@ -13,6 +13,7 @@
     <string name="chats_title">Chats</string>
     <string name="new_message">New Message</string>
     <string name="no_conversations">No conversations yet.\nTap + to start one.</string>
+    <string name="search_contacts">Search contacts…</string>
 
     <!-- Chat Detail -->
     <string name="type_message">Type a message…</string>
@@ -20,22 +21,67 @@
 
     <!-- Channels -->
     <string name="channels_title">Channels</string>
+    <string name="channel_list">Channel List</string>
+    <string name="join_channel">Join Channel</string>
+    <string name="enter_channel_password">Enter channel password</string>
+    <string name="password">Password</string>
+    <string name="hide_password">Hide password</string>
+    <string name="show_password">Show password</string>
+    <string name="join">Join</string>
 
     <!-- Contacts -->
     <string name="contacts_title">Contacts</string>
+    <string name="trust_verified">Verified</string>
+    <string name="trust_known">Known</string>
+    <string name="trust_blocked">Blocked</string>
 
     <!-- Emergency -->
     <string name="emergency_title">Emergency</string>
     <string name="emergency_button">SEND EMERGENCY ALERT</string>
     <string name="emergency_severity">Severity Level</string>
+    <string name="severity_advisory">Advisory</string>
+    <string name="severity_watch">Watch</string>
+    <string name="severity_warning">Warning</string>
+    <string name="severity_critical">Critical</string>
+    <string name="severity_emergency">Emergency</string>
+    <string name="select_severity">Select Severity</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
-    <string name="settings_language">Language</string>
+    <string name="identity">Identity</string>
+    <string name="node_id">Node ID</string>
+    <string name="language_region">Language &amp; Region</string>
+    <string name="language">Language</string>
     <string name="language_farsi">فارسی</string>
     <string name="language_english">English</string>
-    <string name="settings_power_profile">Power Profile</string>
-    <string name="settings_about">About</string>
+    <string name="select_language">Select Language</string>
+    <string name="power_battery">Power &amp; Battery</string>
+    <string name="power_profile">Power Profile</string>
+    <string name="power_emergency">Emergency</string>
+    <string name="power_active">Active</string>
+    <string name="power_balanced">Balanced</string>
+    <string name="power_saver">Power Saver</string>
+    <string name="power_minimal">Minimal</string>
+    <string name="power_hibernation">Hibernation</string>
+    <string name="power_dead">Dead</string>
+    <string name="select_power_profile">Select Power Profile</string>
+    <string name="reset_to_auto">Reset to Auto</string>
+    <string name="auto_adaptive">Auto (Adaptive)</string>
+    <string name="storage">Storage</string>
+    <string name="storage_used">Storage Used</string>
+    <string name="clear_old_messages">Clear Old Messages</string>
+    <string name="clear_messages_description">Delete messages older than 30 days</string>
+    <string name="clear_messages_confirmation">Are you sure you want to delete old messages? This cannot be undone.</string>
+    <string name="clear">Clear</string>
+    <string name="about">About</string>
+    <string name="app_version">App Version</string>
+    <string name="build_info">Build Info</string>
+    <string name="about_rezvan_mesh">About Rezvan Mesh</string>
+    <string name="about_description">Rezvan Mesh is a decentralized, offline mesh communication app designed for emergency and community use.</string>
+    <string name="version_format">Version %s</string>
+    <string name="open_source_notice">This software is open source and built for the people.</string>
+    <string name="close">Close</string>
+    <string name="confirm">Confirm</string>
 
     <!-- General -->
     <string name="back">Back</string>
