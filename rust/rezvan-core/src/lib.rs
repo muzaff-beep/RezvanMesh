@@ -5,6 +5,8 @@ use jni::sys::{jboolean, jbyteArray, jint, jlong};
 use jni::JNIEnv;
 
 use crate::crypto::MockCryptoProvider;
+use crate::action;
+use crate::engine::MeshEngine;
 
 mod engine;
 mod routing;
