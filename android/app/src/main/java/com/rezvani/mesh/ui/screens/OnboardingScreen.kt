@@ -19,26 +19,47 @@ import com.rezvani.mesh.ui.viewmodel.OnboardingViewModel
 
 @Composable
 fun OnboardingScreen(
-    onOnboardingComplete: () -> Unit,
+    onEnterMesh: () -> Unit,
     viewModel: OnboardingViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState
     val scrollState = rememberScrollState()
 
+    LaunchedEffect(uiState.step) {
+        if (uiState.step == OnboardingStep.DONE) {
+            onEnterMesh()
+        }
+    }
+
     Scaffold(
         bottomBar = {
-            OnboardingBottomBar(
-                uiState = uiState,
-                onNext = { viewModel.nextStep() },
-                onBack = { viewModel.previousStep() },
-                onGenerateIdentity = { viewModel.generateIdentity(context) },
-                onRestoreIdentity = { viewModel.showRestoreDialog() },
-                onConfirmBackup = {
-                    viewModel.confirmBackup()
-                    onOnboardingComplete()
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(
+                        onClick = { viewModel.enterMesh(context) },
+                        enabled = !uiState.isLoading && uiState.step != OnboardingStep.DONE,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(stringResource(R.string.enter_mesh))
+                    }
                 }
-            )
+            }
         }
     ) { paddingValues ->
         Box(
@@ -54,6 +75,7 @@ fun OnboardingScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                // App icon
                 Surface(
                     modifier = Modifier.size(100.dp),
                     shape = MaterialTheme.shapes.large,
@@ -70,24 +92,56 @@ fun OnboardingScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                when (uiState.step) {
-                    OnboardingStep.WELCOME -> WelcomeStep()
-                    OnboardingStep.GENERATE -> GenerateStep(
-                        isGenerating = uiState.isGenerating,
-                        errorMessage = uiState.errorMessage
+                // Welcome message
+                Text(
+                    text = stringResource(R.string.onboarding_welcome_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = stringResource(R.string.onboarding_welcome_message),
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Feature card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
                     )
-                    OnboardingStep.RESTORE -> RestoreStep(
-                        mnemonicInput = uiState.mnemonicInput,
-                        onMnemonicChange = { viewModel.updateMnemonicInput(it) },
-                        isRestoring = uiState.isRestoring,
-                        errorMessage = uiState.errorMessage,
-                        onRestore = { viewModel.restoreIdentity(context, uiState.mnemonicInput) }
-                    )
-                    OnboardingStep.BACKUP -> BackupStep(
-                        mnemonicWords = uiState.mnemonicWords,
-                        hasConfirmed = uiState.hasConfirmedBackup,
-                        onToggleConfirm = { viewModel.toggleConfirmBackup() }
-                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "\uD83D\uDCE1 " + stringResource(R.string.offline_mesh_title),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = stringResource(R.string.offline_mesh_description),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
+                // Error message
+                if (uiState.errorMessage != null) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Text(
+                            text = uiState.errorMessage!!,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
             }
 
@@ -96,347 +150,14 @@ fun OnboardingScreen(
             }
         }
     }
-
-    if (uiState.showRestoreDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissRestoreDialog() },
-            title = { Text(stringResource(R.string.restore_identity)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.restore_identity_message))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.restore_warning),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.dismissRestoreDialog()
-                        viewModel.goToRestoreStep()
-                    }
-                ) {
-                    Text(stringResource(R.string.continue_text))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissRestoreDialog() }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun WelcomeStep() {
-    Text(
-        text = stringResource(R.string.onboarding_welcome_title),
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center
-    )
-
-    Text(
-        text = stringResource(R.string.onboarding_welcome_message),
-        style = MaterialTheme.typography.bodyLarge,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "📡 " + stringResource(R.string.offline_mesh_title),
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = stringResource(R.string.offline_mesh_description),
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
-fun GenerateStep(
-    isGenerating: Boolean,
-    errorMessage: String?
-) {
-    Text(
-        text = stringResource(R.string.generate_identity_title),
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center
-    )
-
-    Text(
-        text = stringResource(R.string.generate_identity_message),
-        style = MaterialTheme.typography.bodyLarge,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    if (isGenerating) {
-        CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-    }
-
-    if (errorMessage != null) {
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            )
-        ) {
-            Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun RestoreStep(
-    mnemonicInput: String,
-    onMnemonicChange: (String) -> Unit,
-    isRestoring: Boolean,
-    errorMessage: String?,
-    onRestore: () -> Unit
-) {
-    Text(
-        text = stringResource(R.string.restore_identity_title),
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center
-    )
-
-    Text(
-        text = stringResource(R.string.restore_identity_instructions),
-        style = MaterialTheme.typography.bodyMedium,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    OutlinedTextField(
-        value = mnemonicInput,
-        onValueChange = onMnemonicChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp),
-        placeholder = { Text(stringResource(R.string.enter_12_words)) },
-        minLines = 3,
-        maxLines = 5,
-        enabled = !isRestoring
-    )
-
-    if (errorMessage != null) {
-        Text(
-            text = errorMessage,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodySmall
-        )
-    }
-
-    Button(
-        onClick = onRestore,
-        enabled = mnemonicInput.isNotBlank() && !isRestoring,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        if (isRestoring) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                color = MaterialTheme.colorScheme.onPrimary
-            )
-        } else {
-            Text(stringResource(R.string.restore))
-        }
-    }
-}
-
-@Composable
-fun BackupStep(
-    mnemonicWords: List<String>,
-    hasConfirmed: Boolean,
-    onToggleConfirm: () -> Unit
-) {
-    Text(
-        text = stringResource(R.string.backup_identity_title),
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center
-    )
-
-    Text(
-        text = stringResource(R.string.backup_identity_warning),
-        style = MaterialTheme.typography.bodyMedium,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.error
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            mnemonicWords.chunked(3).forEach { rowWords ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    rowWords.forEachIndexed { index, word ->
-                        val wordNumber = mnemonicWords.indexOf(word) + 1
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "$wordNumber.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = word,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                        if (index < rowWords.size - 1) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                    }
-                    repeat(3 - rowWords.size) {
-                        if (it > 0) Spacer(modifier = Modifier.width(8.dp))
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-    }
-
-    Text(
-        text = stringResource(R.string.backup_instructions),
-        style = MaterialTheme.typography.bodySmall,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Checkbox(
-            checked = hasConfirmed,
-            onCheckedChange = { onToggleConfirm() }
-        )
-        Text(
-            text = stringResource(R.string.i_have_saved_my_recovery_phrase),
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
-}
-
-@Composable
-fun OnboardingBottomBar(
-    uiState: OnboardingUiState,
-    onNext: () -> Unit,
-    onBack: () -> Unit,
-    onGenerateIdentity: () -> Unit,
-    onRestoreIdentity: () -> Unit,
-    onConfirmBackup: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shadowElevation = 8.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            when (uiState.step) {
-                OnboardingStep.WELCOME -> {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Row {
-                        TextButton(onClick = onRestoreIdentity) {
-                            Text(stringResource(R.string.restore))
-                        }
-                        Button(onClick = onNext) {
-                            Text(stringResource(R.string.get_started))
-                        }
-                    }
-                }
-                OnboardingStep.GENERATE -> {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.back))
-                    }
-                    Button(
-                        onClick = onGenerateIdentity,
-                        enabled = !uiState.isGenerating
-                    ) {
-                        Text(stringResource(R.string.generate))
-                    }
-                }
-                OnboardingStep.RESTORE -> {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.back))
-                    }
-                    TextButton(onClick = onGenerateIdentity) {
-                        Text(stringResource(R.string.create_new))
-                    }
-                }
-                OnboardingStep.BACKUP -> {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Button(
-                        onClick = onConfirmBackup,
-                        enabled = uiState.hasConfirmedBackup
-                    ) {
-                        Text(stringResource(R.string.finish))
-                    }
-                }
-            }
-        }
-    }
 }
 
 enum class OnboardingStep {
-    WELCOME, GENERATE, RESTORE, BACKUP
+    WELCOME, DONE
 }
 
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.WELCOME,
     val isLoading: Boolean = false,
-    val isGenerating: Boolean = false,
-    val isRestoring: Boolean = false,
-    val mnemonicWords: List<String> = emptyList(),
-    val mnemonicInput: String = "",
-    val hasConfirmedBackup: Boolean = false,
-    val errorMessage: String? = null,
-    val showRestoreDialog: Boolean = false
+    val errorMessage: String? = null
 )
