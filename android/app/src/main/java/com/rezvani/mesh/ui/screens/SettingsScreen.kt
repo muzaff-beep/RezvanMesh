@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rezvani.mesh.R
-import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.ui.components.ConfirmationDialog
 import com.rezvani.mesh.ui.components.PowerState
 import com.rezvani.mesh.ui.viewmodel.SettingsViewModel
@@ -34,18 +34,17 @@ fun SettingsScreen(
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showPowerDialog by remember { mutableStateOf(false) }
-    var showBackupDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings)) },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back)
                         )
                     }
@@ -59,21 +58,16 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
+            // Identity section – only Node ID
             SettingsSection(title = stringResource(R.string.identity)) {
                 SettingsItem(
                     icon = Icons.Default.Person,
                     title = stringResource(R.string.node_id),
                     subtitle = uiState.nodeId
                 )
-                SettingsItem(
-                    icon = Icons.Default.Key,
-                    title = stringResource(R.string.backup_recovery_phrase),
-                    subtitle = stringResource(R.string.view_or_export),
-                    onClick = { showBackupDialog = true }
-                )
             }
 
-            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
             SettingsSection(title = stringResource(R.string.language_region)) {
                 SettingsItem(
@@ -87,13 +81,13 @@ fun SettingsScreen(
                 )
             }
 
-            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
             SettingsSection(title = stringResource(R.string.power_battery)) {
                 SettingsItem(
                     icon = Icons.Default.BatteryStd,
                     title = stringResource(R.string.power_profile),
-                    subtitle = when (val power = uiState.powerOverride ?: uiState.autoPowerState) {
+                    subtitle = when (uiState.powerOverride ?: uiState.autoPowerState) {
                         PowerState.EMERGENCY -> stringResource(R.string.power_emergency)
                         PowerState.ACTIVE -> stringResource(R.string.power_active)
                         PowerState.BALANCED -> stringResource(R.string.power_balanced)
@@ -114,7 +108,7 @@ fun SettingsScreen(
                 }
             }
 
-            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
             SettingsSection(title = stringResource(R.string.storage)) {
                 SettingsItem(
@@ -131,7 +125,7 @@ fun SettingsScreen(
                 )
             }
 
-            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
             SettingsSection(title = stringResource(R.string.about)) {
                 SettingsItem(
@@ -149,6 +143,7 @@ fun SettingsScreen(
         }
     }
 
+    // Language dialog
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
@@ -188,6 +183,7 @@ fun SettingsScreen(
         )
     }
 
+    // Power profile dialog
     if (showPowerDialog) {
         AlertDialog(
             onDismissRequest = { showPowerDialog = false },
@@ -259,39 +255,7 @@ fun SettingsScreen(
         )
     }
 
-    if (showBackupDialog) {
-        AlertDialog(
-            onDismissRequest = { showBackupDialog = false },
-            title = { Text(stringResource(R.string.recovery_phrase)) },
-            text = {
-                Column {
-                    Text(
-                        text = stringResource(R.string.recovery_phrase_warning),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Text(
-                            text = uiState.mnemonicWords.joinToString(" "),
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showBackupDialog = false }) {
-                    Text(stringResource(R.string.close))
-                }
-            }
-        )
-    }
-
+    // Clear data confirmation
     if (showClearDataDialog) {
         ConfirmationDialog(
             title = stringResource(R.string.clear_old_messages),
@@ -307,6 +271,7 @@ fun SettingsScreen(
         )
     }
 
+    // About dialog
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
