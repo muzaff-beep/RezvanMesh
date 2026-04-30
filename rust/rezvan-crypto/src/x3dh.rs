@@ -29,13 +29,14 @@ pub enum CryptoError {
 /// using curve25519-dalek's mathematical mapping.
 fn convert_ed_pub_to_x25519(ed_pk: &[u8; 32]) -> [u8; 32] {
     use curve25519_dalek::edwards::CompressedEdwardsY;
-    use curve25519_dalek::montgomery::MontgomeryPoint;
-
-    let compressed = CompressedEdwardsY::from_slice(ed_pk);
+    // from_slice returns Result<CompressedEdwardsY, TryFromSliceError>
+    let compressed = match CompressedEdwardsY::from_slice(ed_pk) {
+        Ok(c) => c,
+        Err(_) => return [0u8; 32],
+    };
     if let Some(edwards_point) = compressed.decompress() {
         edwards_point.to_montgomery().to_bytes()
     } else {
-        // Invalid Ed25519 point – return zero key, which will cause handshake failure later
         [0u8; 32]
     }
 }
@@ -153,4 +154,4 @@ pub fn receive_x3dh(
         previous_sending_chain_length: 0,
         skipped_message_keys: std::collections::HashMap::new(),
     })
-                            }
+}
