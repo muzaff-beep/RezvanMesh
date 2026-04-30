@@ -13,9 +13,13 @@ object CrashLogger {
     private var crashFile: File? = null
 
     fun init(context: Context) {
-        // Use the exact path you provided
-        val documentsDir = File("/storage/emulated/0/Documents")
-        crashFile = File(documentsDir, "rezvan_crashes.txt")
+        // Use app-specific external storage — works without permissions on API 26+
+        val dir = context.getExternalFilesDir(null) ?: context.filesDir
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        crashFile = File(dir, "rezvan_crashes.txt")
+
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e(TAG, "Uncaught exception", throwable)
@@ -28,6 +32,12 @@ object CrashLogger {
     private fun saveCrash(throwable: Throwable) {
         try {
             val file = crashFile ?: return
+            // Ensure parent directory exists
+            file.parentFile?.let { parent ->
+                if (!parent.exists()) {
+                    parent.mkdirs()
+                }
+            }
             val writer = FileWriter(file, true)
             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
             writer.write("=== CRASH ${dateFormat.format(Date())} ===\n")
