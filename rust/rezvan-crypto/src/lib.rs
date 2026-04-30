@@ -5,8 +5,6 @@ pub mod ratchet;
 pub mod sender_key;
 pub mod hkdf;
 
-use identity::IdentityKeypair;
-use x3dh::{CryptoError, SessionState};
 
 // Public re-exports so rezvan-core can use these types
 pub use identity::IdentityKeypair;
