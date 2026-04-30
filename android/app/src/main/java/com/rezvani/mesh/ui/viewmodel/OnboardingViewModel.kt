@@ -1,39 +1,31 @@
-package com.rezvani.mesh.ui.viewmodel
-
-import android.content.Context
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
-import com.rezvani.mesh.backup.IdentityBackupHelper
-import com.rezvani.mesh.ui.screens.OnboardingStep
-import com.rezvani.mesh.ui.screens.OnboardingUiState
 
 class OnboardingViewModel : ViewModel() {
-    var uiState by mutableStateOf(OnboardingUiState())
-        private set
+    private val _uiState = mutableStateOf(OnboardingUiState())
+    val uiState: State<OnboardingUiState> = _uiState
 
     fun nextStep() {
-        uiState = uiState.copy(step = OnboardingStep.GENERATE)
+        _uiState.value = _uiState.value.copy(step = OnboardingStep.GENERATE)
     }
 
     fun previousStep() {
-        uiState = uiState.copy(step = OnboardingStep.WELCOME)
+        _uiState.value = _uiState.value.copy(step = OnboardingStep.WELCOME)
     }
 
     fun generateIdentity(context: Context) {
-        uiState = uiState.copy(isGenerating = true, errorMessage = null)
+        _uiState.value = _uiState.value.copy(isGenerating = true, errorMessage = null)
         try {
             val seed = IdentityBackupHelper.generateSeed()
             IdentityBackupHelper.saveSeed(context, seed)
             val mnemonic = IdentityBackupHelper.seedToMnemonic(seed)
-            uiState = uiState.copy(
+            _uiState.value = _uiState.value.copy(
                 isGenerating = false,
                 mnemonicWords = mnemonic,
                 step = OnboardingStep.BACKUP
             )
         } catch (e: Exception) {
-            uiState = uiState.copy(
+            _uiState.value = _uiState.value.copy(
                 isGenerating = false,
                 errorMessage = e.message ?: "Failed to generate identity"
             )
@@ -41,30 +33,30 @@ class OnboardingViewModel : ViewModel() {
     }
 
     fun showRestoreDialog() {
-        uiState = uiState.copy(showRestoreDialog = true)
+        _uiState.value = _uiState.value.copy(showRestoreDialog = true)
     }
 
     fun dismissRestoreDialog() {
-        uiState = uiState.copy(showRestoreDialog = false)
+        _uiState.value = _uiState.value.copy(showRestoreDialog = false)
     }
 
     fun goToRestoreStep() {
-        uiState = uiState.copy(step = OnboardingStep.RESTORE)
+        _uiState.value = _uiState.value.copy(step = OnboardingStep.RESTORE)
     }
 
     fun updateMnemonicInput(input: String) {
-        uiState = uiState.copy(mnemonicInput = input)
+        _uiState.value = _uiState.value.copy(mnemonicInput = input)
     }
 
     fun restoreIdentity(context: Context, mnemonic: String) {
-        uiState = uiState.copy(isRestoring = true, errorMessage = null)
+        _uiState.value = _uiState.value.copy(isRestoring = true, errorMessage = null)
         val words = mnemonic.trim().split("\\s+".toRegex())
         val seed = IdentityBackupHelper.mnemonicToSeed(words)
         if (seed != null) {
             IdentityBackupHelper.saveSeed(context, seed)
-            uiState = uiState.copy(isRestoring = false, step = OnboardingStep.BACKUP)
+            _uiState.value = _uiState.value.copy(isRestoring = false, step = OnboardingStep.BACKUP)
         } else {
-            uiState = uiState.copy(
+            _uiState.value = _uiState.value.copy(
                 isRestoring = false,
                 errorMessage = "Invalid mnemonic. Check the 12 words and try again."
             )
@@ -72,11 +64,10 @@ class OnboardingViewModel : ViewModel() {
     }
 
     fun toggleConfirmBackup() {
-        uiState = uiState.copy(hasConfirmedBackup = !uiState.hasConfirmedBackup)
+        _uiState.value = _uiState.value.copy(hasConfirmedBackup = !_uiState.value.hasConfirmedBackup)
     }
 
     fun confirmBackup() {
-        // Seed is already saved – just mark onboarding as complete in prefs
-        // The actual service start is triggered by the completion callback
+        // Seed is already saved – mark onboarding as complete
     }
 }
