@@ -36,20 +36,12 @@ class ChatDetailViewModel(application: Application) : AndroidViewModel(applicati
         if (text.isBlank()) return
         viewModelScope.launch {
             _isSending.value = true
-            val messageId = UUID.randomUUID().toString()
-            val message = MessageEntity(
-                id = messageId,
+            val messageId = messageRepo.insertTextMessage(
                 conversationId = conversationId,
-                senderId = "self", // Replace with actual node ID
-                timestamp = System.currentTimeMillis(),
-                type = 0, // TEXT
-                content = text,
-                isOutgoing = true,
-                status = 0 // SENDING
+                text = text,
+                isOutgoing = true
             )
-            messageRepo.insert(message)
-            // Also try to send via mesh
-            val recipientId = conversationId.toByteArray().take(8).toByteArray() // simplistic
+            val recipientId = conversationId.toByteArray().take(8).toByteArray()
             val success = MeshServiceConnection.sendTextMessage(recipientId, text)
             if (!success) {
                 messageRepo.updateStatus(messageId, 4) // FAILED
