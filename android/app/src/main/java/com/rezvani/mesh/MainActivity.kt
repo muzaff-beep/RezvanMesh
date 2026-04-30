@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.rezvani.mesh.backup.IdentityBackupHelper
+import com.rezvani.mesh.backup.MacIdentityProvider
 import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.ui.navigation.NavGraph
 import com.rezvani.mesh.ui.theme.RezvanMeshTheme
@@ -70,6 +71,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Auto‑derive seed on first launch
+        lifecycleScope.launch {
+            ensureIdentityExists()
+        }
+
+        // Start radio service if seed exists and permission granted
         lifecycleScope.launch {
             val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
             if (seed != null && hasLocationPermission()) {
@@ -77,10 +84,6 @@ class MainActivity : ComponentActivity() {
             } else if (!hasLocationPermission()) {
                 locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
-        }
-
-        lifecycleScope.launch {
-            ensureIdentityExists()
         }
 
         setContent {
@@ -99,16 +102,6 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unbindRadioService()
-    }
-
-    fun onOnboardingComplete() {
-        val seed = IdentityBackupHelper.loadSeed(this)
-        if (seed != null) {
-            boundService?.initializeMeshEngine(seed)
-            Log.i(TAG, "Mesh engine initialised with identity seed")
-        } else {
-            Log.w(TAG, "onOnboardingComplete called but no seed found")
-        }
     }
 
     private fun startRadioService() {
@@ -139,9 +132,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun ensureIdentityExists() {
-        val seed = IdentityBackupHelper.loadSeed(this)
-        if (seed == null) {
-            Log.i(TAG, "No identity found - onboarding required")
+        val existingSeed = IdentityBackupHelper.loadSeed(this)
+        if (existingSeed == null) {
+            Log.i(TAG, "No identity found — deriving from MAC")
+            val seed = MacIdentityProvider.deriveSeed(this)
+            if (seed != null) {
+                MacIdentityProvider.saveSeed(this, seed)
+                Log.i(TAG, "Identity seed derived and saved")
+            } else {
+                Log.e(TAG, "Failed to derive identity seed from MAC")
+            }
         }
     }
 
