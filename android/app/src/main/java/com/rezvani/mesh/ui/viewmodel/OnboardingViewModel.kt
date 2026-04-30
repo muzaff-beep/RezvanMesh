@@ -4,81 +4,48 @@ import android.content.Context
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import com.rezvani.mesh.backup.MacIdentityProvider
 import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.ui.screens.OnboardingStep
 import com.rezvani.mesh.ui.screens.OnboardingUiState
 
 class OnboardingViewModel : ViewModel() {
-    
+
     private val _uiState = mutableStateOf(OnboardingUiState())
     val uiState: State<OnboardingUiState> = _uiState
 
-    fun nextStep() {
-        _uiState.value = _uiState.value.copy(step = OnboardingStep.GENERATE)
-    }
-
-    fun previousStep() {
-        _uiState.value = _uiState.value.copy(step = OnboardingStep.WELCOME)
-    }
-
-    fun generateIdentity(context: Context) {
-        _uiState.value = _uiState.value.copy(isGenerating = true, errorMessage = null)
+    fun enterMesh(context: Context) {
+        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
         try {
-            val seed = IdentityBackupHelper.generateSeed()
-            IdentityBackupHelper.saveSeed(context, seed)
-            val mnemonic = IdentityBackupHelper.seedToMnemonic(seed)
-            _uiState.value = _uiState.value.copy(
-                isGenerating = false,
-                mnemonicWords = mnemonic,
-                step = OnboardingStep.BACKUP
-            )
+            // Try loading existing seed first
+            val existingSeed = IdentityBackupHelper.loadSeed(context)
+            if (existingSeed != null) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    step = OnboardingStep.DONE
+                )
+                return
+            }
+
+            // Derive new seed from MAC
+            val seed = MacIdentityProvider.deriveSeed(context)
+            if (seed != null) {
+                MacIdentityProvider.saveSeed(context, seed)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    step = OnboardingStep.DONE
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Could not read device MAC address. Please grant all permissions."
+                )
+            }
         } catch (e: Exception) {
             _uiState.value = _uiState.value.copy(
-                isGenerating = false,
-                errorMessage = e.message ?: "Failed to generate identity"
+                isLoading = false,
+                errorMessage = e.message ?: "Failed to create identity"
             )
         }
-    }
-
-    fun showRestoreDialog() {
-        _uiState.value = _uiState.value.copy(showRestoreDialog = true)
-    }
-
-    fun dismissRestoreDialog() {
-        _uiState.value = _uiState.value.copy(showRestoreDialog = false)
-    }
-
-    fun goToRestoreStep() {
-        _uiState.value = _uiState.value.copy(step = OnboardingStep.RESTORE)
-    }
-
-    fun updateMnemonicInput(input: String) {
-        _uiState.value = _uiState.value.copy(mnemonicInput = input)
-    }
-
-    fun restoreIdentity(context: Context, mnemonic: String) {
-        _uiState.value = _uiState.value.copy(isRestoring = true, errorMessage = null)
-        val words = mnemonic.trim().split("\\s+".toRegex())
-        val seed = IdentityBackupHelper.mnemonicToSeed(words)
-        if (seed != null) {
-            IdentityBackupHelper.saveSeed(context, seed)
-            _uiState.value = _uiState.value.copy(isRestoring = false, step = OnboardingStep.BACKUP)
-        } else {
-            _uiState.value = _uiState.value.copy(
-                isRestoring = false,
-                errorMessage = "Invalid mnemonic. Check the 12 words and try again."
-            )
-        }
-    }
-
-    fun toggleConfirmBackup() {
-        _uiState.value = _uiState.value.copy(
-            hasConfirmedBackup = !_uiState.value.hasConfirmedBackup
-        )
-    }
-
-    fun confirmBackup() {
-        // Seed is already saved – mark onboarding as complete in prefs
-        // The actual service start is triggered by the completion callback
     }
 }
