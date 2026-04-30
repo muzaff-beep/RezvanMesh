@@ -8,6 +8,10 @@ pub mod hkdf;
 use identity::IdentityKeypair;
 use x3dh::{CryptoError, SessionState};
 
+// Public re-exports so rezvan-core can use these types
+pub use identity::IdentityKeypair;
+pub use x3dh::{CryptoError, SessionState};
+
 pub trait CryptoProvider: Send + Sync {
     fn generate_identity(seed: &[u8; 32]) -> IdentityKeypair;
     fn sign(identity: &IdentityKeypair, message: &[u8]) -> [u8; 64];
@@ -101,4 +105,4 @@ impl CryptoProvider for SodiumCryptoProvider {
     fn random_bytes(len: usize) -> Vec<u8> {
         sodiumoxide::randombytes::randombytes(len)
     }
-        }
+            }
