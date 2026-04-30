@@ -53,3 +53,17 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+# Keep Tink / Conscrypt — required by security-crypto
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+
+# Keep ErrorProne annotations referenced by Tink at runtime
+-keep class com.google.errorprone.annotations.** { *; }
+-dontwarn com.google.errorprone.annotations.**
+
+# Keep JSR-305 annotations (javax.annotation)
+-keep class javax.annotation.** { *; }
+-dontwarn javax.annotation.**
+
+-keep class javax.annotation.concurrent.** { *; }
+-dontwarn javax.annotation.concurrent.**
