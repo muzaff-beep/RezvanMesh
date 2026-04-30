@@ -14,7 +14,7 @@ pub fn generate_identity(seed: &[u8; 32]) -> IdentityKeypair {
     let mut x25519_seed = [0u8; 32];
     x25519_seed.copy_from_slice(&seed[0..32]);
     let private_x25519 = scalarmult::Scalar(x25519_seed);
-    let public_x25519 = scalarmult::scalarmult_base(&private_x25519).unwrap();
+    let public_x25519 = scalarmult::scalarmult_base(&private_x25519);
 
     IdentityKeypair {
         public_ed25519: public_ed25519.0,
