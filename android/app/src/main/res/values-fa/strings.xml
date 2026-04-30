@@ -12,6 +12,9 @@
     <!-- Chats -->
     <string name="chats_title">گفتگوها</string>
     <string name="new_message">پیام جدید</string>
+    <string name="new_channel">کانال جدید</string>
+    <string name="no_conversations_yet">هنوز گفتگویی وجود ندارد</string>
+    <string name="start_conversation">برای شروع گفتگو + را بزنید</string>
     <string name="no_conversations">هنوز گفتگویی وجود ندارد.\nبرای شروع + را بزنید.</string>
     <string name="search_contacts">جستجوی مخاطبین…</string>
 
@@ -31,14 +34,29 @@
 
     <!-- Contacts -->
     <string name="contacts_title">مخاطبین</string>
+    <string name="contacts">مخاطبین</string>
+    <string name="scan_qr_code">اسکن کد QR</string>
+    <string name="add_contact">افزودن مخاطب</string>
+    <string name="no_contacts_yet">هنوز مخاطبی وجود ندارد</string>
+    <string name="no_matching_contacts">مخاطبی مطابقت ندارد</string>
     <string name="trust_verified">تأیید شده</string>
     <string name="trust_known">شناخته شده</string>
     <string name="trust_blocked">مسدود</string>
 
     <!-- Emergency -->
     <string name="emergency_title">اضطراری</string>
+    <string name="emergency_alert">هشدار اضطراری</string>
     <string name="emergency_button">ارسال هشدار اضطراری</string>
     <string name="emergency_severity">سطح هشدار</string>
+    <string name="emergency_warning_header">⚠ شما در حال ارسال یک هشدار اضطراری عمومی هستید</string>
+    <string name="emergency_instructions">سطح هشدار را انتخاب و تأیید کنید. موقعیت جغرافیایی شما در اعلامیه گنجانده می‌شود.</string>
+    <string name="sending_emergency">در حال ارسال هشدار اضطراری…</string>
+    <string name="emergency_sent_success">هشدار اضطراری با موفقیت ارسال شد</string>
+    <string name="emergency_send_failed">ارسال هشدار اضطراری شکست خورد</string>
+    <string name="emergency_disclaimer">⚠ فقط در شرایط اضطراری واقعی استفاده کنید. سوء استفاده ممکن است اعتماد شبکه را کاهش دهد.</string>
+    <string name="confirm_emergency">تأیید هشدار اضطراری</string>
+    <string name="emergency_confirmation_message">آیا مطمئن هستید که می‌خواهید این هشدار اضطراری را برای همه دستگاه‌های مجاور ارسال کنید؟</string>
+    <string name="send_emergency">ارسال هشدار اضطراری</string>
     <string name="severity_advisory">اطلاع‌رسانی</string>
     <string name="severity_watch">مراقبت</string>
     <string name="severity_warning">هشدار</string>
@@ -92,6 +110,7 @@
     <string name="restore">بازیابی</string>
     <string name="get_started">شروع</string>
     <string name="create_new">ایجاد جدید</string>
+    <string name="failed">ناموفق</string>
 
     <!-- Service -->
     <string name="mesh_service_title">مش رضوان</string>
