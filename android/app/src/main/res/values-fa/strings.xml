@@ -13,6 +13,7 @@
     <string name="chats_title">گفتگوها</string>
     <string name="new_message">پیام جدید</string>
     <string name="no_conversations">هنوز گفتگویی وجود ندارد.\nبرای شروع + را بزنید.</string>
+    <string name="search_contacts">جستجوی مخاطبین…</string>
 
     <!-- Chat Detail -->
     <string name="type_message">پیام خود را بنویسید…</string>
@@ -20,22 +21,67 @@
 
     <!-- Channels -->
     <string name="channels_title">کانال‌ها</string>
+    <string name="channel_list">لیست کانال‌ها</string>
+    <string name="join_channel">عضویت در کانال</string>
+    <string name="enter_channel_password">رمز عبور کانال را وارد کنید</string>
+    <string name="password">رمز عبور</string>
+    <string name="hide_password">مخفی کردن رمز</string>
+    <string name="show_password">نمایش رمز</string>
+    <string name="join">عضویت</string>
 
     <!-- Contacts -->
     <string name="contacts_title">مخاطبین</string>
+    <string name="trust_verified">تأیید شده</string>
+    <string name="trust_known">شناخته شده</string>
+    <string name="trust_blocked">مسدود</string>
 
     <!-- Emergency -->
     <string name="emergency_title">اضطراری</string>
     <string name="emergency_button">ارسال هشدار اضطراری</string>
     <string name="emergency_severity">سطح هشدار</string>
+    <string name="severity_advisory">اطلاع‌رسانی</string>
+    <string name="severity_watch">مراقبت</string>
+    <string name="severity_warning">هشدار</string>
+    <string name="severity_critical">بحرانی</string>
+    <string name="severity_emergency">اضطراری</string>
+    <string name="select_severity">انتخاب سطح هشدار</string>
 
     <!-- Settings -->
     <string name="settings_title">تنظیمات</string>
-    <string name="settings_language">زبان</string>
+    <string name="identity">هویت</string>
+    <string name="node_id">شناسه گره</string>
+    <string name="language_region">زبان و منطقه</string>
+    <string name="language">زبان</string>
     <string name="language_farsi">فارسی</string>
     <string name="language_english">English</string>
-    <string name="settings_power_profile">پروفایل مصرف باتری</string>
-    <string name="settings_about">درباره</string>
+    <string name="select_language">انتخاب زبان</string>
+    <string name="power_battery">باتری و مصرف</string>
+    <string name="power_profile">پروفایل مصرف</string>
+    <string name="power_emergency">اضطراری</string>
+    <string name="power_active">فعال</string>
+    <string name="power_balanced">متوازن</string>
+    <string name="power_saver">صرفه‌جو</string>
+    <string name="power_minimal">حداقلی</string>
+    <string name="power_hibernation">خواب زمستانی</string>
+    <string name="power_dead">خاموش</string>
+    <string name="select_power_profile">انتخاب پروفایل مصرف</string>
+    <string name="reset_to_auto">بازگشت به خودکار</string>
+    <string name="auto_adaptive">خودکار (تطبیقی)</string>
+    <string name="storage">ذخیره‌سازی</string>
+    <string name="storage_used">فضای استفاده شده</string>
+    <string name="clear_old_messages">حذف پیام‌های قدیمی</string>
+    <string name="clear_messages_description">پیام‌های قدیمی‌تر از ۳۰ روز حذف شوند.</string>
+    <string name="clear_messages_confirmation">آیا مطمئن هستید که می‌خواهید پیام‌های قدیمی را حذف کنید؟ این عملیات قابل بازگشت نیست.</string>
+    <string name="clear">حذف</string>
+    <string name="about">درباره</string>
+    <string name="app_version">نسخه برنامه</string>
+    <string name="build_info">اطلاعات ساخت</string>
+    <string name="about_rezvan_mesh">درباره مش رضوان</string>
+    <string name="about_description">مش رضوان یک برنامه ارتباطی مش غیرمتمرکز و آفلاین است که برای موارد اضطراری و جامعه طراحی شده است.</string>
+    <string name="version_format">نسخه %s</string>
+    <string name="open_source_notice">این نرم‌افزار متن‌باز و برای مردم ساخته شده است.</string>
+    <string name="close">بستن</string>
+    <string name="confirm">تأیید</string>
 
     <!-- General -->
     <string name="back">بازگشت</string>
