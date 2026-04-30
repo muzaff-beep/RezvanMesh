@@ -2,9 +2,6 @@
 ///
 /// Seven states control how aggressively the radio scans, advertises, and
 /// transmits.  Transitions are triggered by battery level, charging status, and
-/// optional user overrides.
-
-use crate::action::Action;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
