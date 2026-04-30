@@ -24,9 +24,10 @@ impl MeshEngine {
         let identity = crypto.generate_identity(seed);
         let node_id = rezvan_common::compute_node_id(&identity.public_ed25519);
 
-        Self {
+        let mut engine = Self {
+            crypto,
             routing: RoutingTable::new(node_id),
-            sessions: SessionManager::new(crypto.clone_box(), identity),
+            sessions: SessionManager::new(Box::new(crate::crypto::MockCryptoProvider), identity),
             power_state: PowerState::Active,
             user_override: None,
             battery_level: 100,
@@ -35,8 +36,11 @@ impl MeshEngine {
             ogm_sequence: 0,
             adv_sequence: 0,
             node_id,
-            crypto,
-        }
+        };
+
+        // Replace the dummy session manager with the real one
+        engine.sessions = SessionManager::new(engine.crypto.clone_box(), engine.sessions.identity());
+        engine
     }
 
     pub fn tick(&mut self) -> Vec<Action> {
@@ -149,21 +153,4 @@ impl MeshEngine {
         adv[12..14].copy_from_slice(&seq);
         adv
     }
-}
-
-// helper trait for cloning Box<dyn CryptoProvider>
-trait CryptoProviderClone {
-    fn clone_box(&self) -> Box<dyn CryptoProvider>;
-}
-
-impl<T: CryptoProvider + Clone + 'static> CryptoProviderClone for T {
-    fn clone_box(&self) -> Box<dyn CryptoProvider> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn CryptoProvider> {
-    fn clone(&self) -> Box<dyn CryptoProvider> {
-        (**self).clone_box()
-    }
-                }
+                        }
