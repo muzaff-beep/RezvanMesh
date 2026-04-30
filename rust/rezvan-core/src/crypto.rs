@@ -31,7 +31,13 @@ impl CryptoProvider for MockCryptoProvider {
 
     fn verify(&self, _pk: &[u8; 32], _msg: &[u8], _sig: &[u8; 64]) -> bool { true }
 
-    fn initiate_x3dh(&self, _our: &IdentityKeypair, _their: &[u8; 32], _spk: &[u8; 32], _opk: Option<&[u8; 32]>) -> Result<SessionState, CryptoError> {
+    fn initiate_x3dh(
+        &self,
+        _our: &IdentityKeypair,
+        _their: &[u8; 32],
+        _spk: &[u8; 32],
+        _opk: Option<&[u8; 32]>,
+    ) -> Result<SessionState, CryptoError> {
         Ok(SessionState {
             root_key: [0u8; 32],
             sending_chain_key: [0u8; 32],
@@ -46,12 +52,21 @@ impl CryptoProvider for MockCryptoProvider {
         })
     }
 
-    fn receive_x3dh(&self, _our: &IdentityKeypair, _their: &[u8; 32], _data: &[u8]) -> Result<SessionState, CryptoError> {
+    fn receive_x3dh(
+        &self,
+        _our: &IdentityKeypair,
+        _their: &[u8; 32],
+        _data: &[u8],
+    ) -> Result<SessionState, CryptoError> {
         self.initiate_x3dh(_our, _their, &[0u8; 32], None)
     }
 
-    fn ratchet_encrypt(&self, _session: &mut SessionState, pt: &[u8]) -> Result<Vec<u8>, CryptoError> { Ok(pt.to_vec()) }
-    fn ratchet_decrypt(&self, _session: &mut SessionState, ct: &[u8]) -> Result<Vec<u8>, CryptoError> { Ok(ct.to_vec()) }
+    fn ratchet_encrypt(&self, _session: &mut SessionState, pt: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        Ok(pt.to_vec())
+    }
+    fn ratchet_decrypt(&self, _session: &mut SessionState, ct: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        Ok(ct.to_vec())
+    }
     fn generate_sender_key(&self) -> [u8; 32] { [0u8; 32] }
     fn sender_key_encrypt(&self, _key: &[u8; 32], pt: &[u8]) -> Vec<u8> { pt.to_vec() }
     fn sender_key_decrypt(&self, _key: &[u8; 32], ct: &[u8]) -> Option<Vec<u8>> { Some(ct.to_vec()) }
@@ -62,4 +77,4 @@ impl CryptoProvider for MockCryptoProvider {
         out
     }
     fn random_bytes(&self, len: usize) -> Vec<u8> { vec![0u8; len] }
-}
+            }
