@@ -1,197 +1,104 @@
-// src/lib.rs
+pub mod identity;
+pub mod sign;
+pub mod x3dh;
+pub mod ratchet;
+pub mod sender_key;
+pub mod hkdf;
 
-pub mod action;
-pub mod crypto;
-pub mod engine;
-pub mod power;
-pub mod routing;
-pub mod session;
+use identity::IdentityKeypair;
+use x3dh::{CryptoError, SessionState};
 
-use engine::MeshEngine;
-use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jboolean, jbyteArray, jint, jlong};
-use jni::JNIEnv;
-use std::ptr;
+pub trait CryptoProvider: Send + Sync {
+    fn generate_identity(seed: &[u8; 32]) -> IdentityKeypair;
+    fn sign(identity: &IdentityKeypair, message: &[u8]) -> [u8; 64];
+    fn verify(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool;
 
-// Thread-local storage for the last error message to pass to Java.
-thread_local! {
-    static LAST_ERROR: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+    fn initiate_x3dh(
+        our_identity: &IdentityKeypair,
+        their_identity: &[u8; 32],
+        their_signed_prekey: &[u8; 32],
+        their_one_time_prekey: Option<&[u8; 32]>,
+    ) -> Result<SessionState, CryptoError>;
+
+    fn receive_x3dh(
+        our_identity: &IdentityKeypair,
+        their_identity: &[u8; 32],
+        initiation_bytes: &[u8],
+    ) -> Result<SessionState, CryptoError>;
+
+    fn ratchet_encrypt(session: &mut SessionState, plaintext: &[u8]) -> Result<Vec<u8>, CryptoError>;
+    fn ratchet_decrypt(session: &mut SessionState, ciphertext: &[u8]) -> Result<Vec<u8>, CryptoError>;
+
+    fn generate_sender_key() -> [u8; 32];
+    fn sender_key_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Vec<u8>;
+    fn sender_key_decrypt(key: &[u8; 32], ciphertext: &[u8]) -> Option<Vec<u8>>;
+
+    fn hkdf(ikm: &[u8], salt: &[u8], info: &[u8], length: usize) -> Vec<u8>;
+    fn random_bytes(len: usize) -> Vec<u8>;
 }
 
-fn set_last_error(err: String) {
-    LAST_ERROR.with(|e| {
-        *e.borrow_mut() = Some(err);
-    });
-}
+pub struct SodiumCryptoProvider;
 
-fn take_last_error() -> Option<String> {
-    LAST_ERROR.with(|e| e.borrow_mut().take())
-}
-
-/// Convert a Rust `Vec<u8>` to a Java byte array, or null if empty.
-fn vec_to_jbytearray(env: &JNIEnv, data: Vec<u8>) -> jbyteArray {
-    if data.is_empty() {
-        return ptr::null_mut();
+impl CryptoProvider for SodiumCryptoProvider {
+    fn generate_identity(seed: &[u8; 32]) -> IdentityKeypair {
+        identity::generate_identity(seed)
     }
-    match env.byte_array_from_slice(&data) {
-        Ok(arr) => arr.into_raw(),
-        Err(e) => {
-            set_last_error(format!("Failed to create byte array: {}", e));
-            ptr::null_mut()
-        }
+
+    fn sign(identity: &IdentityKeypair, message: &[u8]) -> [u8; 64] {
+        sign::sign(identity, message)
     }
-}
 
-/// Convert a Java byte array to a Rust `Vec<u8>`.
-fn jbytearray_to_vec(env: &JNIEnv, arr: JByteArray) -> Result<Vec<u8>, String> {
-    if arr.is_null() {
-        return Err("Byte array is null".to_string());
+    fn verify(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool {
+        sign::verify(public_key, message, signature)
     }
-    let size = env.get_array_length(arr).map_err(|e| format!("{:?}", e))?;
-    let mut buf = vec![0u8; size as usize];
-    env.get_byte_array_region(arr, 0, &mut buf)
-        .map_err(|e| format!("{:?}", e))?;
-    Ok(buf)
-}
 
-#[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeInit(
-    env: JNIEnv,
-    _class: JClass,
-    seed: JByteArray,
-    storage_path: JString,
-) -> jlong {
-    let seed_vec = match jbytearray_to_vec(&env, seed) {
-        Ok(v) => v,
-        Err(e) => {
-            set_last_error(e);
-            return 0;
-        }
-    };
-    if seed_vec.len() != 32 {
-        set_last_error("Seed must be 32 bytes".to_string());
-        return 0;
+    fn initiate_x3dh(
+        our_identity: &IdentityKeypair,
+        their_identity: &[u8; 32],
+        their_signed_prekey: &[u8; 32],
+        their_one_time_prekey: Option<&[u8; 32]>,
+    ) -> Result<SessionState, CryptoError> {
+        x3dh::initiate_x3dh(
+            our_identity,
+            their_identity,
+            their_signed_prekey,
+            their_one_time_prekey,
+        )
     }
-    let seed_array: [u8; 32] = match seed_vec.try_into() {
-        Ok(arr) => arr,
-        Err(_) => {
-            set_last_error("Seed length mismatch".to_string());
-            return 0;
-        }
-    };
 
-    let path: String = env
-        .get_string(&storage_path)
-        .expect("Couldn't get storage path")
-        .into();
+    fn receive_x3dh(
+        our_identity: &IdentityKeypair,
+        their_identity: &[u8; 32],
+        initiation_bytes: &[u8],
+    ) -> Result<SessionState, CryptoError> {
+        x3dh::receive_x3dh(our_identity, their_identity, initiation_bytes)
+    }
 
-    // Create a mock crypto provider for now; will be replaced with Team B's impl.
-    let crypto = Box::new(crypto::MockCryptoProvider);
-    let engine = MeshEngine::new(&seed_array, crypto, &path);
-    Box::into_raw(Box::new(engine)) as jlong
-}
+    fn ratchet_encrypt(session: &mut SessionState, plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        ratchet::ratchet_encrypt(session, plaintext)
+    }
 
-#[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeProcessIncoming(
-    env: JNIEnv,
-    _class: JClass,
-    core_ptr: jlong,
-    packet: JByteArray,
-    rssi: jint,
-    timestamp_us: jlong,
-) -> jbyteArray {
-    let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
-    let packet_data = match jbytearray_to_vec(&env, packet) {
-        Ok(v) => v,
-        Err(e) => {
-            set_last_error(e);
-            return ptr::null_mut();
-        }
-    };
-    let (_decrypted, actions) = engine.process_incoming(&packet_data, rssi, timestamp_us as u64);
-    let serialized = action::serialize_actions(&actions);
-    vec_to_jbytearray(&env, serialized)
-}
+    fn ratchet_decrypt(session: &mut SessionState, ciphertext: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        ratchet::ratchet_decrypt(session, ciphertext)
+    }
 
-#[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeTick(
-    env: JNIEnv,
-    _class: JClass,
-    core_ptr: jlong,
-) -> jbyteArray {
-    let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
-    let actions = engine.tick();
-    let serialized = action::serialize_actions(&actions);
-    vec_to_jbytearray(&env, serialized)
-}
+    fn generate_sender_key() -> [u8; 32] {
+        sender_key::generate()
+    }
 
-#[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeSendMessage(
-    env: JNIEnv,
-    _class: JClass,
-    core_ptr: jlong,
-    recipient_id: JByteArray,
-    plaintext: JByteArray,
-    message_type: jint,
-) -> jbyteArray {
-    let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
-    let recipient_vec = match jbytearray_to_vec(&env, recipient_id) {
-        Ok(v) => v,
-        Err(e) => {
-            set_last_error(e);
-            return ptr::null_mut();
-        }
-    };
-    let recipient: [u8; 8] = match recipient_vec.try_into() {
-        Ok(arr) => arr,
-        Err(_) => {
-            set_last_error("Recipient ID must be 8 bytes".to_string());
-            return ptr::null_mut();
-        }
-    };
-    let plain = match jbytearray_to_vec(&env, plaintext) {
-        Ok(v) => v,
-        Err(e) => {
-            set_last_error(e);
-            return ptr::null_mut();
-        }
-    };
-    let actions = engine.send_message(&recipient, &plain, message_type as u8);
-    let serialized = action::serialize_actions(&actions);
-    vec_to_jbytearray(&env, serialized)
-}
+    fn sender_key_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Vec<u8> {
+        sender_key::encrypt(key, plaintext)
+    }
 
-#[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeGetPowerState(
-    _env: JNIEnv,
-    _class: JClass,
-    core_ptr: jlong,
-) -> jint {
-    let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
-    engine.get_power_state() as jint
-}
+    fn sender_key_decrypt(key: &[u8; 32], ciphertext: &[u8]) -> Option<Vec<u8>> {
+        sender_key::decrypt(key, ciphertext)
+    }
 
-#[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeUpdateBattery(
-    _env: JNIEnv,
-    _class: JClass,
-    core_ptr: jlong,
-    level_percent: jint,
-    is_charging: jboolean,
-) {
-    let engine = unsafe { &mut *(core_ptr as *mut MeshEngine) };
-    engine.update_battery(level_percent as u8, is_charging != 0);
-}
+    fn hkdf(ikm: &[u8], salt: &[u8], info: &[u8], length: usize) -> Vec<u8> {
+        hkdf::hkdf_sha256(ikm, salt, info, length)
+    }
 
-#[no_mangle]
-pub extern "system" fn Java_com_rezvani_mesh_MeshCore_nativeDestroy(
-    _env: JNIEnv,
-    _class: JClass,
-    core_ptr: jlong,
-) {
-    if core_ptr != 0 {
-        unsafe {
-            let _ = Box::from_raw(core_ptr as *mut MeshEngine);
-        }
+    fn random_bytes(len: usize) -> Vec<u8> {
+        sodiumoxide::randombytes::randombytes(len)
     }
 }
