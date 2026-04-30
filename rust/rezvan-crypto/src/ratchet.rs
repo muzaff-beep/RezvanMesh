@@ -123,4 +123,4 @@ pub fn ratchet_decrypt(
         Ok(plaintext) => Ok(plaintext),
         Err(_) => Err(CryptoError::DecryptionFailed),
     }
-            }
+    }
