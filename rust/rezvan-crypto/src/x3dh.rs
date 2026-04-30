@@ -1,5 +1,4 @@
 use sodiumoxide::crypto::scalarmult;
-use sodiumoxide::crypto::sign;
 use crate::identity::IdentityKeypair;
 use crate::hkdf;
 
@@ -44,7 +43,7 @@ fn generate_ephemeral_keypair() -> ([u8; 32], [u8; 32]) {
     let mut private = [0u8; 32];
     private.copy_from_slice(&sk);
     let scalar = scalarmult::Scalar(private);
-    let public = scalarmult::scalarmult_base(&scalar).unwrap();
+    let public = scalarmult::scalarmult_base(&scalar);
     (private, public.0)
 }
 
@@ -53,7 +52,7 @@ fn get_signed_prekey_for_handshake() -> Result<([u8; 32], [u8; 32]), CryptoError
     let mut private = [0u8; 32];
     private.copy_from_slice(&sk);
     let scalar = scalarmult::Scalar(private);
-    let public = scalarmult::scalarmult_base(&scalar).unwrap();
+    let public = scalarmult::scalarmult_base(&scalar);
     Ok((private, public.0))
 }
 
@@ -138,7 +137,7 @@ pub fn receive_x3dh(
         root_key,
         sending_chain_key: [0u8; 32],
         receiving_chain_key,
-        sending_ratchet_private: *our_identity.private_x25519.as_ref(),
+        sending_ratchet_private: our_identity.private_x25519,
         sending_ratchet_public: our_identity.public_x25519,
         receiving_ratchet_public: Some(their_ephemeral_public),
         sending_message_number: 0,
