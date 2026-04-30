@@ -16,7 +16,11 @@ use engine::MeshEngine;
 fn jbytearray_to_vec(env: &mut JNIEnv, array: &JByteArray) -> Result<Vec<u8>, String> {
     let size = env.get_array_length(array).map_err(|e| e.to_string())? as usize;
     let mut buf = vec![0u8; size];
-    env.get_byte_array_region(array, 0, &mut buf)
+    // JNI get_byte_array_region expects &mut [i8]; transmute the Vec<u8> buffer
+    let buf_slice = unsafe {
+        std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut i8, size)
+    };
+    env.get_byte_array_region(array, 0, buf_slice)
         .map_err(|e| e.to_string())?;
     Ok(buf)
 }
