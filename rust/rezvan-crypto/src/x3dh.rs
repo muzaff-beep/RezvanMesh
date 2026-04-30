@@ -122,7 +122,7 @@ pub fn receive_x3dh(
     let their_ephemeral_public: [u8; 32] = initiation_bytes[0..32].try_into().unwrap();
     let their_id_x25519 = convert_ed_pub_to_x25519(their_identity);
 
-    let (_signed_prekey_private, signed_prekey_public) = get_signed_prekey_for_handshake()?;
+    let (_signed_prekey_private, _signed_prekey_public) = get_signed_prekey_for_handshake()?;
 
     let dh1 = dh(&our_identity.private_x25519, &their_ephemeral_public)?;
     let dh2 = dh(&our_identity.private_x25519, &their_id_x25519)?;
@@ -153,51 +153,4 @@ pub fn receive_x3dh(
         previous_sending_chain_length: 0,
         skipped_message_keys: std::collections::HashMap::new(),
     })
-    }        skipped_message_keys: std::collections::HashMap::new(),
-    })
-}
-
-pub fn receive_x3dh(
-    our_identity: &IdentityKeypair,
-    their_identity: &[u8; 32],
-    initiation_bytes: &[u8],
-) -> Result<SessionState, CryptoError> {
-    if initiation_bytes.len() < 96 {
-        return Err(CryptoError::HandshakeFailed);
-    }
-
-    let their_ephemeral_public: [u8; 32] = initiation_bytes[0..32].try_into().unwrap();
-    let their_id_x25519 = convert_ed_pub_to_x25519(their_identity);
-
-    let (_signed_prekey_private, signed_prekey_public) = get_signed_prekey_for_handshake()?;
-
-    let dh1 = dh(&our_identity.private_x25519, &their_ephemeral_public)?;
-    let dh2 = dh(&our_identity.private_x25519, &their_id_x25519)?;
-    let dh3 = dh(&our_identity.private_x25519, &their_ephemeral_public)?;
-
-    let mut shared_secret = Vec::new();
-    shared_secret.extend_from_slice(&dh1);
-    shared_secret.extend_from_slice(&dh2);
-    shared_secret.extend_from_slice(&dh3);
-
-    let sk = hkdf::hkdf_sha256(&shared_secret, &[], b"RezvanX3DH", 32);
-    let mut root_key = [0u8; 32];
-    root_key.copy_from_slice(&sk);
-
-    let chain_key = hkdf::hkdf_sha256(&[], &root_key, b"RezvanChain", 32);
-    let mut receiving_chain_key = [0u8; 32];
-    receiving_chain_key.copy_from_slice(&chain_key);
-
-    Ok(SessionState {
-        root_key,
-        sending_chain_key: [0u8; 32],
-        receiving_chain_key,
-        sending_ratchet_private: our_identity.private_x25519,
-        sending_ratchet_public: our_identity.public_x25519,
-        receiving_ratchet_public: Some(their_ephemeral_public),
-        sending_message_number: 0,
-        receiving_message_number: 0,
-        previous_sending_chain_length: 0,
-        skipped_message_keys: std::collections::HashMap::new(),
-    })
-}
+                            }
