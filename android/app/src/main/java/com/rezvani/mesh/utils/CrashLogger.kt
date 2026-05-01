@@ -1,42 +1,77 @@
 package com.rezvani.mesh.utils
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
-import java.io.File
-import java.io.FileWriter
 import java.io.PrintWriter
+import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
 object CrashLogger {
     private const val TAG = "CrashLogger"
-    private var crashFile: File? = null
+    private var appContext: Context? = null
 
     fun init(context: Context) {
-        val dir = context.getExternalFilesDir(null) ?: context.filesDir
-        crashFile = File(dir, "rezvan_crashes.txt")
+        appContext = context.applicationContext
+        writeStartupLog()
+
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e(TAG, "Uncaught exception", throwable)
             saveCrash(throwable)
             defaultHandler?.uncaughtException(thread, throwable)
         }
-        Log.i(TAG, "Crash logger ready: ${crashFile?.absolutePath}")
+        Log.i(TAG, "Crash logger initialized")
+    }
+
+    private fun writeStartupLog() {
+        try {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+            val startupMsg = "=== REZVAN STARTUP $timestamp ===\nApp launched successfully.\n\n"
+            val filename = "rezvan_startup_${System.currentTimeMillis()}.txt"
+            writeToDownloads(filename, startupMsg)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to write startup log", e)
+        }
     }
 
     private fun saveCrash(throwable: Throwable) {
         try {
-            val file = crashFile ?: return
-            file.parentFile?.mkdirs()
-            val writer = FileWriter(file, true)
             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-            writer.write("=== CRASH ${dateFormat.format(Date())} ===\n")
-            throwable.printStackTrace(PrintWriter(writer))
-            writer.write("\n\n")
-            writer.flush()
-            writer.close()
+            val header = "=== CRASH ${dateFormat.format(Date())} ===\n"
+            val sw = StringWriter()
+            throwable.printStackTrace(PrintWriter(sw))
+            val body = sw.toString()
+            val crashText = header + body + "\n\n"
+
+            val filename = "rezvan_crash_${System.currentTimeMillis()}.txt"
+            writeToDownloads(filename, crashText)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save crash log", e)
+        }
+    }
+
+    private fun writeToDownloads(filename: String, content: String) {
+        val context = appContext ?: return
+        try {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = context.contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+            )
+            uri?.let {
+                context.contentResolver.openOutputStream(it)?.use { os ->
+                    os.write(content.toByteArray())
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to write to Downloads", e)
         }
     }
 }
