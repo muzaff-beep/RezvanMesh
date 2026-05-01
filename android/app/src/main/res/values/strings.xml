@@ -131,4 +131,6 @@
     <string name="mesh_service_running">Mesh network active</string>
     <string name="mesh_channel_name">Mesh Service</string>
     <string name="mesh_channel_description">Rezvan Mesh network service</string>
+    
+    <string name="bug_report">Bug Report</string>
 </resources>
