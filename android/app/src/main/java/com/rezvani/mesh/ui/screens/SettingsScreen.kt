@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +20,6 @@ import com.rezvani.mesh.R
 import com.rezvani.mesh.ui.components.ConfirmationDialog
 import com.rezvani.mesh.ui.components.PowerState
 import com.rezvani.mesh.ui.viewmodel.SettingsViewModel
-import com.rezvani.mesh.utils.CrashLogger
 import com.rezvani.mesh.utils.LocaleHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,7 +36,7 @@ fun SettingsScreen(
     var showPowerDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
-    var showCrashLogDialog by remember { mutableStateOf(false) }
+    var showCrashInfoDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -141,15 +141,14 @@ fun SettingsScreen(
                 )
                 SettingsItem(
                     icon = Icons.Default.BugReport,
-                    title = "Crash Log",
-                    subtitle = "View crash history",
-                    onClick = { showCrashLogDialog = true }
+                    title = stringResource(R.string.crash_logs),
+                    subtitle = stringResource(R.string.crash_logs_description),
+                    onClick = { showCrashInfoDialog = true }
                 )
             }
         }
     }
 
-    // Language dialog
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
@@ -189,7 +188,6 @@ fun SettingsScreen(
         )
     }
 
-    // Power profile dialog
     if (showPowerDialog) {
         AlertDialog(
             onDismissRequest = { showPowerDialog = false },
@@ -261,7 +259,6 @@ fun SettingsScreen(
         )
     }
 
-    // Clear data confirmation
     if (showClearDataDialog) {
         ConfirmationDialog(
             title = stringResource(R.string.clear_old_messages),
@@ -277,7 +274,6 @@ fun SettingsScreen(
         )
     }
 
-    // About dialog
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
@@ -306,42 +302,23 @@ fun SettingsScreen(
         )
     }
 
-    // Crash log dialog
-    if (showCrashLogDialog) {
-        val crashText = remember { CrashLogger.getCrashLog() }
+    if (showCrashInfoDialog) {
         AlertDialog(
-            onDismissRequest = { showCrashLogDialog = false },
-            title = { Text("Crash Log") },
+            onDismissRequest = { showCrashInfoDialog = false },
+            title = { Text(stringResource(R.string.crash_logs)) },
             text = {
-                Column {
-                    if (crashText == "No crashes recorded") {
-                        Text(
-                            text = crashText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        Text(
-                            text = crashText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.crash_logs_info))
+                    Text(
+                        text = "📁 " + stringResource(R.string.documents_folder) + "\n📁 " + stringResource(R.string.downloads_folder),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TextButton(onClick = {
-                        CrashLogger.clearCrashLog()
-                        showCrashLogDialog = false
-                    }) {
-                        Text("Clear")
-                    }
-                    TextButton(onClick = { showCrashLogDialog = false }) {
-                        Text(stringResource(R.string.close))
-                    }
+                TextButton(onClick = { showCrashInfoDialog = false }) {
+                    Text(stringResource(R.string.close))
                 }
             }
         )
