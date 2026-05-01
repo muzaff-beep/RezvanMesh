@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +19,7 @@ import com.rezvani.mesh.R
 import com.rezvani.mesh.ui.components.ConfirmationDialog
 import com.rezvani.mesh.ui.components.PowerState
 import com.rezvani.mesh.ui.viewmodel.SettingsViewModel
+import com.rezvani.mesh.utils.CrashLogger
 import com.rezvani.mesh.utils.LocaleHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,6 +36,7 @@ fun SettingsScreen(
     var showPowerDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showCrashLogDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -58,7 +59,6 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
-            // Identity section – only Node ID
             SettingsSection(title = stringResource(R.string.identity)) {
                 SettingsItem(
                     icon = Icons.Default.Person,
@@ -138,6 +138,12 @@ fun SettingsScreen(
                     icon = Icons.Default.Build,
                     title = stringResource(R.string.build_info),
                     subtitle = "${uiState.versionCode} (${uiState.buildVariant})"
+                )
+                SettingsItem(
+                    icon = Icons.Default.BugReport,
+                    title = "Crash Log",
+                    subtitle = "View crash history",
+                    onClick = { showCrashLogDialog = true }
                 )
             }
         }
@@ -295,6 +301,47 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = { showAboutDialog = false }) {
                     Text(stringResource(R.string.close))
+                }
+            }
+        )
+    }
+
+    // Crash log dialog
+    if (showCrashLogDialog) {
+        val crashText = remember { CrashLogger.getCrashLog() }
+        AlertDialog(
+            onDismissRequest = { showCrashLogDialog = false },
+            title = { Text("Crash Log") },
+            text = {
+                Column {
+                    if (crashText == "No crashes recorded") {
+                        Text(
+                            text = crashText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text = crashText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextButton(onClick = {
+                        CrashLogger.clearCrashLog()
+                        showCrashLogDialog = false
+                    }) {
+                        Text("Clear")
+                    }
+                    TextButton(onClick = { showCrashLogDialog = false }) {
+                        Text(stringResource(R.string.close))
+                    }
                 }
             }
         )
