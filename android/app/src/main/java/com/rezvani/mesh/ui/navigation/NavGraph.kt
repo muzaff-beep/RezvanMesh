@@ -16,9 +16,9 @@ fun NavGraph(
         startDestination = startDestination
     ) {
         composable("onboarding") {
-            // OnboardingScreen expects: onOnboardingComplete: () -> Unit
+            // OnboardingScreen expects: onEnterMesh: () -> Unit
             OnboardingScreen(
-                onOnboardingComplete = {
+                onEnterMesh = {
                     navController.navigate("chats") {
                         popUpTo("onboarding") { inclusive = true }
                     }
@@ -28,7 +28,7 @@ fun NavGraph(
 
         composable("chats") {
             // ChatsScreen expects:
-            // onConversationClick: (String, String) -> Unit  (conversationId, contactName)
+            // onConversationClick: (String, String) -> Unit
             // onNewMessageClick: () -> Unit
             // onNewChannelClick: () -> Unit
             // onEmergencyClick: () -> Unit
@@ -54,7 +54,7 @@ fun NavGraph(
             // conversationId: String, contactName: String, onNavigateBack: () -> Unit
             ChatDetailScreen(
                 conversationId = conversationId,
-                contactName = "", // real name should come from a ViewModel/contact lookup
+                contactName = "", // placeholder, real name from ViewModel
                 onNavigateBack = { navController.popBackStack() }
             )
         }
