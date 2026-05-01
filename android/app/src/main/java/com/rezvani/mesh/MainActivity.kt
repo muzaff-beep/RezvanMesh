@@ -10,23 +10,26 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import android.widget.TextView
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.compose.rememberNavController
 import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.backup.MacIdentityProvider
 import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.ui.navigation.NavGraph
 import com.rezvani.mesh.ui.theme.RezvanMeshTheme
+import com.rezvani.mesh.utils.CrashLogger
 import com.rezvani.mesh.utils.LocaleHelper
 import kotlinx.coroutines.launch
+import java.io.PrintWriter
+import java.io.StringWriter
 
 class MainActivity : ComponentActivity() {
 
@@ -43,8 +46,6 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) {
             Log.i(TAG, "Location permission granted")
-        } else {
-            Log.w(TAG, "Location permission denied – Wi‑Fi Direct disabled")
         }
         startRadioService()
     }
@@ -53,9 +54,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            Log.i(TAG, "MAC permission granted – MAC‑based identity available")
-        } else {
-            Log.w(TAG, "MAC permission denied – using random seed fallback")
+            Log.i(TAG, "MAC permission granted")
         }
     }
 
@@ -66,7 +65,6 @@ class MainActivity : ComponentActivity() {
             if (boundService != null) {
                 MeshServiceConnection.onServiceConnected(boundService!!)
                 isServiceBound.value = true
-                Log.i(TAG, "RezvanRadioService connected")
             }
         }
 
@@ -74,7 +72,6 @@ class MainActivity : ComponentActivity() {
             MeshServiceConnection.onServiceDisconnected()
             boundService = null
             isServiceBound.value = false
-            Log.i(TAG, "RezvanRadioService disconnected")
         }
     }
 
@@ -100,16 +97,32 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        setContent {
-            RezvanMeshTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.background
-                ) {
-                    val navController = rememberNavController()
-                    NavGraph(navController = navController)
+        try {
+            setContent {
+                RezvanMeshTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        val navController = androidx.navigation.compose.rememberNavController()
+                        NavGraph(navController = navController)
+                    }
                 }
             }
+        } catch (e: Exception) {
+            // Immediate error feedback
+            val errorText = StringWriter().also {
+                e.printStackTrace(PrintWriter(it))
+            }.toString()
+            CrashLogger.init(this)  // ensure logger
+            Log.e(TAG, "Fatal error in setContent", e)
+            val textView = TextView(this).apply {
+                text = "FATAL ERROR\n\n$errorText"
+                setTextColor(0xFFFF0000.toInt())
+                textSize = 12f
+                setPadding(32, 32, 32, 32)
+            }
+            setContentView(textView)
         }
     }
 
@@ -141,9 +154,7 @@ class MainActivity : ComponentActivity() {
         if (isServiceBound.value) {
             try {
                 unbindService(serviceConnection)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to unbind radio service", e)
-            }
+            } catch (_: Exception) {}
             isServiceBound.value = false
         }
     }
@@ -166,18 +177,13 @@ class MainActivity : ComponentActivity() {
             Log.i(TAG, "No identity found — deriving from MAC")
             val seed = if (hasMacPermission()) {
                 MacIdentityProvider.deriveSeed(this)
-            } else {
-                null
-            }
+            } else null
             if (seed != null) {
                 MacIdentityProvider.saveSeed(this, seed)
-                Log.i(TAG, "Identity seed derived from MAC and saved")
             } else {
-                Log.w(TAG, "MAC unavailable — using random seed fallback")
                 val randomSeed = ByteArray(32)
                 java.security.SecureRandom().nextBytes(randomSeed)
                 MacIdentityProvider.saveSeed(this, randomSeed)
-                Log.i(TAG, "Random identity seed saved")
             }
         }
     }
