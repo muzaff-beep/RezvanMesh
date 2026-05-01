@@ -131,4 +131,6 @@
     <string name="mesh_service_running">شبکه مش فعال است</string>
     <string name="mesh_channel_name">سرویس مش</string>
     <string name="mesh_channel_description">سرویس شبکه مش رضوان</string>
+
+    <string name="bug_report">گزارش خطا</string>
 </resources>
