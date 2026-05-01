@@ -30,6 +30,11 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val PERMISSION_LOCAL_MAC_ADDRESS = "android.permission.LOCAL_MAC_ADDRESS"
+    }
+
     private var boundService: RezvanRadioService? = null
     private val isServiceBound = mutableStateOf(false)
 
@@ -82,15 +87,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request permissions
         requestAllPermissions()
 
-        // Auto‑derive seed on first launch
         lifecycleScope.launch {
             ensureIdentityExists()
         }
 
-        // Start radio service if seed exists and location permission granted
         lifecycleScope.launch {
             val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
             if (seed != null && hasLocationPermission()) {
@@ -121,7 +123,7 @@ class MainActivity : ComponentActivity() {
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasMacPermission()) {
-            macPermissionLauncher.launch(Manifest.permission.LOCAL_MAC_ADDRESS)
+            macPermissionLauncher.launch(PERMISSION_LOCAL_MAC_ADDRESS)
         }
     }
 
@@ -154,7 +156,7 @@ class MainActivity : ComponentActivity() {
 
     private fun hasMacPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
-            this, Manifest.permission.LOCAL_MAC_ADDRESS
+            this, PERMISSION_LOCAL_MAC_ADDRESS
         ) == PackageManager.PERMISSION_GRANTED
     }
 
@@ -178,9 +180,5 @@ class MainActivity : ComponentActivity() {
                 Log.i(TAG, "Random identity seed saved")
             }
         }
-    }
-
-    companion object {
-        private const val TAG = "MainActivity"
     }
 }
