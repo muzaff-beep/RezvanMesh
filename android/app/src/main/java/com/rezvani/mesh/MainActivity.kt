@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
@@ -36,11 +37,21 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            Log.i(TAG, "Location permission granted – starting mesh service")
+            Log.i(TAG, "Location permission granted")
         } else {
             Log.w(TAG, "Location permission denied – Wi‑Fi Direct disabled")
         }
         startRadioService()
+    }
+
+    private val macPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Log.i(TAG, "MAC permission granted – MAC‑based identity available")
+        } else {
+            Log.w(TAG, "MAC permission denied – using random seed fallback")
+        }
     }
 
     private val serviceConnection = object : ServiceConnection {
@@ -71,18 +82,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Request permissions
+        requestAllPermissions()
+
         // Auto‑derive seed on first launch
         lifecycleScope.launch {
             ensureIdentityExists()
         }
 
-        // Start radio service if seed exists and permission granted
+        // Start radio service if seed exists and location permission granted
         lifecycleScope.launch {
             val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
             if (seed != null && hasLocationPermission()) {
                 startRadioService()
-            } else if (!hasLocationPermission()) {
-                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
 
@@ -102,6 +114,15 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unbindRadioService()
+    }
+
+    private fun requestAllPermissions() {
+        if (!hasLocationPermission()) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasMacPermission()) {
+            macPermissionLauncher.launch(Manifest.permission.LOCAL_MAC_ADDRESS)
+        }
     }
 
     private fun startRadioService() {
@@ -131,16 +152,30 @@ class MainActivity : ComponentActivity() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun hasMacPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.LOCAL_MAC_ADDRESS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private suspend fun ensureIdentityExists() {
         val existingSeed = IdentityBackupHelper.loadSeed(this)
         if (existingSeed == null) {
             Log.i(TAG, "No identity found — deriving from MAC")
-            val seed = MacIdentityProvider.deriveSeed(this)
+            val seed = if (hasMacPermission()) {
+                MacIdentityProvider.deriveSeed(this)
+            } else {
+                null
+            }
             if (seed != null) {
                 MacIdentityProvider.saveSeed(this, seed)
-                Log.i(TAG, "Identity seed derived and saved")
+                Log.i(TAG, "Identity seed derived from MAC and saved")
             } else {
-                Log.e(TAG, "Failed to derive identity seed from MAC")
+                Log.w(TAG, "MAC unavailable — using random seed fallback")
+                val randomSeed = ByteArray(32)
+                java.security.SecureRandom().nextBytes(randomSeed)
+                MacIdentityProvider.saveSeed(this, randomSeed)
+                Log.i(TAG, "Random identity seed saved")
             }
         }
     }
