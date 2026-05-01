@@ -115,6 +115,14 @@
     <string name="close">Close</string>
     <string name="confirm">Confirm</string>
 
+    <!-- Crash Logs -->
+    <string name="crash_logs">Crash Logs</string>
+    <string name="crash_logs_description">Saved to Documents and Downloads</string>
+    <string name="crash_logs_info">If the app crashes, a log file is automatically saved to your Documents and Downloads folders. Look for files named rezvan_crash_*.txt.</string>
+    <string name="documents_folder">Documents folder</string>
+    <string name="downloads_folder">Downloads folder</string>
+    <string name="bug_report">Bug Report</string>
+
     <!-- General -->
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>
@@ -131,6 +139,4 @@
     <string name="mesh_service_running">Mesh network active</string>
     <string name="mesh_channel_name">Mesh Service</string>
     <string name="mesh_channel_description">Rezvan Mesh network service</string>
-    
-    <string name="bug_report">Bug Report</string>
 </resources>
