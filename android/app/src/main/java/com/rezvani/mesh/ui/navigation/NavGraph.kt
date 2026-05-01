@@ -16,8 +16,9 @@ fun NavGraph(
         startDestination = startDestination
     ) {
         composable("onboarding") {
+            // OnboardingScreen expects: onOnboardingComplete: () -> Unit
             OnboardingScreen(
-                onEnterMesh = {
+                onOnboardingComplete = {
                     navController.navigate("chats") {
                         popUpTo("onboarding") { inclusive = true }
                     }
@@ -26,61 +27,76 @@ fun NavGraph(
         }
 
         composable("chats") {
+            // ChatsScreen expects:
+            // onConversationClick: (String, String) -> Unit  (conversationId, contactName)
+            // onNewMessageClick: () -> Unit
+            // onNewChannelClick: () -> Unit
+            // onEmergencyClick: () -> Unit
             ChatsScreen(
-                onConversationClick = { conversationId ->
+                onConversationClick = { conversationId, _ ->
                     navController.navigate("chat/$conversationId")
                 },
                 onNewMessageClick = {
-                    // navigate to new message/contact picker
+                    // TODO: navigate to contact picker or new message screen
                 },
                 onNewChannelClick = {
                     navController.navigate("channels")
                 },
-                onContactsClick = {
-                    navController.navigate("contacts")
-                },
                 onEmergencyClick = {
                     navController.navigate("emergency")
-                },
-                onSettingsClick = {
-                    navController.navigate("settings")
                 }
             )
         }
 
         composable("chat/{conversationId}") { backStackEntry ->
             val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+            // ChatDetailScreen expects:
+            // conversationId: String, contactName: String, onNavigateBack: () -> Unit
             ChatDetailScreen(
                 conversationId = conversationId,
-                contactName = "", // placeholder, real name from ViewModel
+                contactName = "", // real name should come from a ViewModel/contact lookup
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable("channels") {
+            // ChannelsScreen expects:
+            // onChannelClick: (Int) -> Unit, onCreateChannel: () -> Unit
             ChannelsScreen(
-                onChannelClick = { channelId -> /* handle channel click */ },
-                onCreateChannel = { /* show create channel dialog */ },
-                onNavigateBack = { navController.popBackStack() }
+                onChannelClick = { channelId ->
+                    // TODO: navigate to channel detail or join channel
+                },
+                onCreateChannel = {
+                    // TODO: show create channel dialog
+                }
             )
         }
 
         composable("contacts") {
+            // ContactsScreen expects:
+            // onContactClick: (String) -> Unit, onAddContact: () -> Unit, onScanQrCode: () -> Unit
             ContactsScreen(
-                onContactClick = { contactId -> /* open chat with contact */ },
-                onAddContact = { /* show add contact dialog */ },
-                onScanQrCode = { /* launch QR scanner */ },
-                onNavigateBack = { navController.popBackStack() }
+                onContactClick = { contactId ->
+                    // TODO: open chat with this contact
+                },
+                onAddContact = {
+                    // TODO: show add contact dialog
+                },
+                onScanQrCode = {
+                    // TODO: launch QR scanner
+                }
             )
         }
 
         composable("emergency") {
+            // EmergencyScreen expects: onNavigateBack: () -> Unit
             EmergencyScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable("settings") {
+            // SettingsScreen expects: onNavigateBack: () -> Unit
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
