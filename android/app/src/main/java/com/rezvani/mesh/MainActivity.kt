@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) Log.i(TAG, "Location permission granted")
         else Log.w(TAG, "Location permission denied – Wi‑Fi Direct disabled")
-        // startRadioService() // DISABLED for Step 1
+        startRadioService()
     }
 
     private val macPermissionLauncher = registerForActivityResult(
@@ -81,18 +81,18 @@ class MainActivity : ComponentActivity() {
 
         requestAllPermissions()
 
-        // Step 1: Only identity derivation
+        // Step 1: Derive identity
         lifecycleScope.launch {
             ensureIdentityExists()
         }
 
-        // Service start still disabled
-        // lifecycleScope.launch {
-        //     val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
-        //     if (seed != null && hasLocationPermission()) {
-        //         startRadioService()
-        //     }
-        // }
+        // Step 2: Start radio service if identity exists and permission granted
+        lifecycleScope.launch {
+            val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
+            if (seed != null && hasLocationPermission()) {
+                startRadioService()
+            }
+        }
 
         setContent {
             RezvanMeshTheme {
