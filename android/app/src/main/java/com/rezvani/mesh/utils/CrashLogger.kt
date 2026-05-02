@@ -33,11 +33,10 @@ object CrashLogger {
     private fun writeStartupLog() {
         try {
             val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-            val startupMsg = "=== REZVAN STARTUP $timestamp ===\nApp launched successfully.\n\n"
-            val filename = "rezvan_startup_${System.currentTimeMillis()}.txt"
-            writeToDownloads(filename, startupMsg)
+            val msg = "=== REZVAN STARTUP $timestamp ===\nApp launched.\n\n"
+            writeToDownloads("rezvan_startup_${System.currentTimeMillis()}.txt", msg)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write startup log", e)
+            Log.e(TAG, "startup log failed", e)
         }
     }
 
@@ -48,52 +47,45 @@ object CrashLogger {
             val sw = StringWriter()
             throwable.printStackTrace(PrintWriter(sw))
             val body = sw.toString()
-            val crashText = header + body + "\n\n"
-
-            val filename = "rezvan_crash_${System.currentTimeMillis()}.txt"
-            writeToDownloads(filename, crashText)
+            writeToDownloads("rezvan_crash_${System.currentTimeMillis()}.txt", header + body + "\n\n")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to save crash log", e)
+            Log.e(TAG, "crash log failed", e)
         }
     }
 
     private fun dumpLogcat() {
         try {
             val timestamp = System.currentTimeMillis()
-            val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-t", "200"))
+            val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-t", "300"))
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val sb = StringBuilder()
-            sb.append("=== LOGCAT DUMP ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\n\n")
+            sb.appendLine("=== LOGCAT ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===")
             reader.forEachLine { sb.appendLine(it) }
             reader.close()
             process.waitFor()
-
             writeToDownloads("rezvan_logcat_$timestamp.txt", sb.toString())
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to dump logcat", e)
-            writeToDownloads("rezvan_logcat_error_${System.currentTimeMillis()}.txt", "Logcat dump failed: ${e.message}")
+            writeToDownloads("rezvan_logcat_error_${System.currentTimeMillis()}.txt", "Logcat failed: ${e.message}")
         }
     }
 
     private fun writeToDownloads(filename: String, content: String) {
-        val context = appContext ?: return
+        val ctx = appContext ?: return
         try {
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
                 put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             }
-            val uri = context.contentResolver.insert(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
-            )
+            val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
             uri?.let {
-                context.contentResolver.openOutputStream(it)?.use { os ->
+                ctx.contentResolver.openOutputStream(it)?.use { os ->
                     os.write(content.toByteArray())
                     os.flush()
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write to Downloads: $filename", e)
+            Log.e(TAG, "writeToDownloads failed: $filename", e)
         }
     }
 }
