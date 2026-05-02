@@ -39,14 +39,16 @@ class RezvanRadioService : Service() {
     fun getMeshCorePtr(): Long = meshCorePtr
 
     fun initializeMeshEngine(seed: ByteArray) {
-        if (meshCorePtr != 0L) {
-            Log.w(TAG, "Mesh engine already initialised")
-            return
-        }
-        val storagePath = filesDir.absolutePath
-        meshCorePtr = MeshCore.nativeInit(seed, storagePath)
-        Log.i(TAG, "MeshCore initialised, ptr = $meshCorePtr")
-        startPeriodicTick()
+        // DISABLED for isolation test
+        Log.w(TAG, "Mesh engine initialization DISABLED for testing")
+        // if (meshCorePtr != 0L) {
+        //     Log.w(TAG, "Mesh engine already initialised")
+        //     return
+        // }
+        // val storagePath = filesDir.absolutePath
+        // meshCorePtr = MeshCore.nativeInit(seed, storagePath)
+        // Log.i(TAG, "MeshCore initialised, ptr = $meshCorePtr")
+        // startPeriodicTick()
     }
 
     override fun onCreate() {
