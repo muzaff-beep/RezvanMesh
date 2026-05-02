@@ -41,19 +41,18 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
-            getDefaultProguardFile("proguard-android-optimize.txt"),
-            "proguard-rules.pro"
-        )
-        signingConfig = signingConfigs.getByName("release")
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            isDebuggable = true
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            manifestPlaceholders["debuggable"] = "false"
+        }
     }
-    debug {
-        isDebuggable = true
-        applicationIdSuffix = ".debug"
-        versionNameSuffix = "-debug"
-        manifestPlaceholders["debuggable"] = "false"
-    }
-}
-
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
