@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.text.SimpleDateFormat
@@ -22,6 +24,7 @@ object CrashLogger {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e(TAG, "Uncaught exception", throwable)
             saveCrash(throwable)
+            dumpLogcat()
             defaultHandler?.uncaughtException(thread, throwable)
         }
         Log.i(TAG, "Crash logger initialized")
@@ -54,6 +57,24 @@ object CrashLogger {
         }
     }
 
+    private fun dumpLogcat() {
+        try {
+            val timestamp = System.currentTimeMillis()
+            val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-t", "200"))
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val sb = StringBuilder()
+            sb.append("=== LOGCAT DUMP ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\n\n")
+            reader.forEachLine { sb.appendLine(it) }
+            reader.close()
+            process.waitFor()
+
+            writeToDownloads("rezvan_logcat_$timestamp.txt", sb.toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to dump logcat", e)
+            writeToDownloads("rezvan_logcat_error_${System.currentTimeMillis()}.txt", "Logcat dump failed: ${e.message}")
+        }
+    }
+
     private fun writeToDownloads(filename: String, content: String) {
         val context = appContext ?: return
         try {
@@ -68,10 +89,11 @@ object CrashLogger {
             uri?.let {
                 context.contentResolver.openOutputStream(it)?.use { os ->
                     os.write(content.toByteArray())
+                    os.flush()
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write to Downloads", e)
+            Log.e(TAG, "Failed to write to Downloads: $filename", e)
         }
     }
 }
