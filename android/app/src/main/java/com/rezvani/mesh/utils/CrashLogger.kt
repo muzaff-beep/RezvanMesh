@@ -5,8 +5,6 @@ import android.content.Context
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.text.SimpleDateFormat
@@ -18,55 +16,35 @@ object CrashLogger {
 
     fun init(context: Context) {
         appContext = context.applicationContext
-        writeStartupLog()
+
+        writeToDownloads(
+            "rezvan_startup_${System.currentTimeMillis()}.txt",
+            "=== REZVAN STARTUP ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\nApp launched.\n\n"
+        )
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e(TAG, "Uncaught exception", throwable)
-            saveCrash(throwable)
-            dumpLogcat()
+            writeCrash(throwable)
             defaultHandler?.uncaughtException(thread, throwable)
         }
-        Log.i(TAG, "Crash logger initialized")
+
+        Runtime.getRuntime().addShutdownHook(Thread {
+            Log.w(TAG, "Process shutting down")
+            writeToDownloads(
+                "rezvan_shutdown_${System.currentTimeMillis()}.txt",
+                "=== PROCESS SHUTDOWN ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\nPossible native crash or force close.\n\n"
+            )
+        })
     }
 
-    private fun writeStartupLog() {
-        try {
-            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-            val msg = "=== REZVAN STARTUP $timestamp ===\nApp launched.\n\n"
-            writeToDownloads("rezvan_startup_${System.currentTimeMillis()}.txt", msg)
-        } catch (e: Exception) {
-            Log.e(TAG, "startup log failed", e)
-        }
-    }
-
-    private fun saveCrash(throwable: Throwable) {
-        try {
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-            val header = "=== CRASH ${dateFormat.format(Date())} ===\n"
-            val sw = StringWriter()
-            throwable.printStackTrace(PrintWriter(sw))
-            val body = sw.toString()
-            writeToDownloads("rezvan_crash_${System.currentTimeMillis()}.txt", header + body + "\n\n")
-        } catch (e: Exception) {
-            Log.e(TAG, "crash log failed", e)
-        }
-    }
-
-    private fun dumpLogcat() {
-        try {
-            val timestamp = System.currentTimeMillis()
-            val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-t", "300"))
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val sb = StringBuilder()
-            sb.appendLine("=== LOGCAT ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===")
-            reader.forEachLine { sb.appendLine(it) }
-            reader.close()
-            process.waitFor()
-            writeToDownloads("rezvan_logcat_$timestamp.txt", sb.toString())
-        } catch (e: Exception) {
-            writeToDownloads("rezvan_logcat_error_${System.currentTimeMillis()}.txt", "Logcat failed: ${e.message}")
-        }
+    private fun writeCrash(throwable: Throwable) {
+        val sw = StringWriter()
+        throwable.printStackTrace(PrintWriter(sw))
+        writeToDownloads(
+            "rezvan_crash_${System.currentTimeMillis()}.txt",
+            "=== CRASH ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\n${sw}\n\n"
+        )
     }
 
     private fun writeToDownloads(filename: String, content: String) {
@@ -85,7 +63,7 @@ object CrashLogger {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "writeToDownloads failed: $filename", e)
+            Log.e(TAG, "writeToDownloads failed", e)
         }
     }
 }
