@@ -5,17 +5,24 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.*
+import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.rezvani.mesh.MainActivity
 import com.rezvani.mesh.MeshCore
 import com.rezvani.mesh.R
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RezvanRadioService : Service() {
@@ -39,25 +46,23 @@ class RezvanRadioService : Service() {
     fun getMeshCorePtr(): Long = meshCorePtr
 
     fun initializeMeshEngine(seed: ByteArray) {
-        // DISABLED for isolation test
         Log.w(TAG, "Mesh engine initialization DISABLED for testing")
-        // if (meshCorePtr != 0L) {
-        //     Log.w(TAG, "Mesh engine already initialised")
-        //     return
-        // }
-        // val storagePath = filesDir.absolutePath
-        // meshCorePtr = MeshCore.nativeInit(seed, storagePath)
-        // Log.i(TAG, "MeshCore initialised, ptr = $meshCorePtr")
-        // startPeriodicTick()
     }
 
     override fun onCreate() {
         super.onCreate()
-        Log.i(TAG, "RezvanRadioService onCreate")
-        startForegroundWithNotification()
-        acquireWakeLock()
-        radioController = RadioControllerImpl(this)
-        actionDispatcher = ActionDispatcher(this)
+        try {
+            Log.i(TAG, "RezvanRadioService onCreate")
+            startForegroundWithNotification()
+            acquireWakeLock()
+            radioController = RadioControllerImpl(this)
+            actionDispatcher = ActionDispatcher(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
+            writeCrashDirect(e)
+            // Re-throw to let the default handler also fire
+            throw e
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -86,7 +91,7 @@ class RezvanRadioService : Service() {
             MeshCore.nativeDestroy(meshCorePtr)
             meshCorePtr = 0
         }
-        radioController.onDestroy()
+        if (::radioController.isInitialized) radioController.onDestroy()
         releaseWakeLock()
         super.onDestroy()
     }
@@ -187,6 +192,40 @@ class RezvanRadioService : Service() {
         val prefs = getSharedPreferences(PREFS_IDENTITY, Context.MODE_PRIVATE)
         val encoded = prefs.getString(KEY_SEED, null) ?: return null
         return Base64.decode(encoded, Base64.NO_WRAP)
+    }
+
+    /**
+     * Writes the exception directly to Downloads, bypassing the normal crash logger
+     * which may not have run yet or may fail to write.
+     */
+    private fun writeCrashDirect(throwable: Throwable) {
+        try {
+            val sw = StringWriter()
+            throwable.printStackTrace(PrintWriter(sw))
+            val content = "=== SERVICE CRASH ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\n${sw}\n\n"
+            val filename = "rezvan_service_crash_${System.currentTimeMillis()}.txt"
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                uri?.let {
+                    contentResolver.openOutputStream(it)?.use { os ->
+                        os.write(content.toByteArray())
+                        os.flush()
+                    }
+                }
+            } else {
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val file = File(dir, filename)
+                File(file.parentFile?.also { it.mkdirs() } ?: dir, filename).writeText(content)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to write crash log to Downloads", e)
+        }
     }
 
     companion object {
