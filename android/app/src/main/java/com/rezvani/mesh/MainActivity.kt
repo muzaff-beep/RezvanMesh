@@ -10,52 +10,43 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.compose.rememberNavController
 import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.backup.MacIdentityProvider
 import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.ui.navigation.NavGraph
 import com.rezvani.mesh.ui.theme.RezvanMeshTheme
-import com.rezvani.mesh.utils.CrashLogger
 import com.rezvani.mesh.utils.LocaleHelper
 import kotlinx.coroutines.launch
-import java.io.PrintWriter
-import java.io.StringWriter
 
 class MainActivity : ComponentActivity() {
 
-    companion object {
-        private const val TAG = "MainActivity"
-        private const val PERMISSION_LOCAL_MAC_ADDRESS = "android.permission.LOCAL_MAC_ADDRESS"
-    }
-
     private var boundService: RezvanRadioService? = null
     private val isServiceBound = mutableStateOf(false)
+    private val PERMISSION_LOCAL_MAC_ADDRESS = "android.permission.LOCAL_MAC_ADDRESS"
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
-            Log.i(TAG, "Location permission granted")
-        }
+        if (isGranted) Log.i(TAG, "Location permission granted")
+        else Log.w(TAG, "Location permission denied – Wi‑Fi Direct disabled")
         startRadioService()
     }
 
     private val macPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
-            Log.i(TAG, "MAC permission granted")
-        }
+        if (isGranted) Log.i(TAG, "MAC permission granted")
+        else Log.w(TAG, "MAC permission denied – using random seed fallback")
     }
 
     private val serviceConnection = object : ServiceConnection {
@@ -65,6 +56,7 @@ class MainActivity : ComponentActivity() {
             if (boundService != null) {
                 MeshServiceConnection.onServiceConnected(boundService!!)
                 isServiceBound.value = true
+                Log.i(TAG, "RezvanRadioService connected")
             }
         }
 
@@ -72,6 +64,7 @@ class MainActivity : ComponentActivity() {
             MeshServiceConnection.onServiceDisconnected()
             boundService = null
             isServiceBound.value = false
+            Log.i(TAG, "RezvanRadioService disconnected")
         }
     }
 
@@ -97,32 +90,16 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        try {
-            setContent {
-                RezvanMeshTheme {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        val navController = androidx.navigation.compose.rememberNavController()
-                        NavGraph(navController = navController)
-                    }
+        setContent {
+            RezvanMeshTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val navController = rememberNavController()
+                    NavGraph(navController = navController)
                 }
             }
-        } catch (e: Exception) {
-            // Immediate error feedback
-            val errorText = StringWriter().also {
-                e.printStackTrace(PrintWriter(it))
-            }.toString()
-            CrashLogger.init(this)  // ensure logger
-            Log.e(TAG, "Fatal error in setContent", e)
-            val textView = TextView(this).apply {
-                text = "FATAL ERROR\n\n$errorText"
-                setTextColor(0xFFFF0000.toInt())
-                textSize = 12f
-                setPadding(32, 32, 32, 32)
-            }
-            setContentView(textView)
         }
     }
 
@@ -186,5 +163,9 @@ class MainActivity : ComponentActivity() {
                 MacIdentityProvider.saveSeed(this, randomSeed)
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }
