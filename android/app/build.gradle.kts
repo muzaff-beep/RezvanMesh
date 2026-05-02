@@ -50,7 +50,6 @@ android {
             isDebuggable = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            manifestPlaceholders["debuggable"] = "false"
         }
     }
 
