@@ -16,6 +16,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -31,7 +33,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     private var boundService: RezvanRadioService? = null
-    private val isServiceBound = mutableStateOf(false)
+    private val isServiceBound: MutableState<Boolean> = mutableStateOf(false)
     private val PERMISSION_LOCAL_MAC_ADDRESS = "android.permission.LOCAL_MAC_ADDRESS"
 
     private val locationPermissionLauncher = registerForActivityResult(
