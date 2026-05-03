@@ -27,8 +27,7 @@ class RezvanRadioService : Service() {
 
     private val binder = LocalBinder()
     private lateinit var wakeLock: PowerManager.WakeLock
-    private lateinit var radioController: RadioController
-    private lateinit var actionDispatcher: ActionDispatcher
+    // REMOVED for isolation: radioController, actionDispatcher
     private val tickHandler = Handler(Looper.getMainLooper())
     private val isRunning = AtomicBoolean(false)
 
@@ -50,11 +49,10 @@ class RezvanRadioService : Service() {
     override fun onCreate() {
         super.onCreate()
         try {
-            Log.i(TAG, "RezvanRadioService onCreate")
+            Log.i(TAG, "RezvanRadioService onCreate (minimal)")
             startForegroundWithNotification()
             acquireWakeLock()
-            radioController = RadioControllerImpl(this)
-            actionDispatcher = ActionDispatcher(this)
+            // radioController and actionDispatcher REMOVED for isolation test
         } catch (e: Exception) {
             Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
             writeCrashToExternalFiles(e)
@@ -88,16 +86,13 @@ class RezvanRadioService : Service() {
             MeshCore.nativeDestroy(meshCorePtr)
             meshCorePtr = 0
         }
-        if (::radioController.isInitialized) radioController.onDestroy()
         releaseWakeLock()
         super.onDestroy()
     }
 
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
         if (meshCorePtr == 0L) return
-        val timestampUs = System.currentTimeMillis() * 1000
-        val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
-        result?.let { actionDispatcher.dispatch(it, radioController) }
+        // ActionDispatcher removed, so nothing to dispatch
     }
 
     private fun startForegroundWithNotification() {
@@ -162,7 +157,7 @@ class RezvanRadioService : Service() {
                 if (!isRunning.get() || meshCorePtr == 0L) return
                 try {
                     val actions = MeshCore.nativeTick(meshCorePtr)
-                    actions?.let { actionDispatcher.dispatch(it, radioController) }
+                    // actions would be dispatched here if ActionDispatcher were present
                     updateBatteryInfo()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in periodic tick", e)
@@ -191,10 +186,6 @@ class RezvanRadioService : Service() {
         return Base64.decode(encoded, Base64.NO_WRAP)
     }
 
-    /**
-     * Writes the exception directly to the app's external files directory,
-     * which is accessible via Termux after termux-setup-storage.
-     */
     private fun writeCrashToExternalFiles(throwable: Throwable) {
         try {
             val sw = StringWriter()
