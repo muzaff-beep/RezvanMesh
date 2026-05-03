@@ -5,13 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.*
-import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -59,8 +57,7 @@ class RezvanRadioService : Service() {
             actionDispatcher = ActionDispatcher(this)
         } catch (e: Exception) {
             Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
-            writeCrashDirect(e)
-            // Re-throw to let the default handler also fire
+            writeCrashToExternalFiles(e)
             throw e
         }
     }
@@ -195,36 +192,20 @@ class RezvanRadioService : Service() {
     }
 
     /**
-     * Writes the exception directly to Downloads, bypassing the normal crash logger
-     * which may not have run yet or may fail to write.
+     * Writes the exception directly to the app's external files directory,
+     * which is accessible via Termux after termux-setup-storage.
      */
-    private fun writeCrashDirect(throwable: Throwable) {
+    private fun writeCrashToExternalFiles(throwable: Throwable) {
         try {
             val sw = StringWriter()
             throwable.printStackTrace(PrintWriter(sw))
             val content = "=== SERVICE CRASH ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\n${sw}\n\n"
-            val filename = "rezvan_service_crash_${System.currentTimeMillis()}.txt"
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                }
-                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                uri?.let {
-                    contentResolver.openOutputStream(it)?.use { os ->
-                        os.write(content.toByteArray())
-                        os.flush()
-                    }
-                }
-            } else {
-                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val file = File(dir, filename)
-                File(file.parentFile?.also { it.mkdirs() } ?: dir, filename).writeText(content)
-            }
+            val dir = getExternalFilesDir(null) ?: filesDir
+            val file = File(dir, "rezvan_service_crash.txt")
+            file.writeText(content)
+            Log.i(TAG, "Crash log written to ${file.absolutePath}")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write crash log to Downloads", e)
+            Log.e(TAG, "Failed to write crash log", e)
         }
     }
 
