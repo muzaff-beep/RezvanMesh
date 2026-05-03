@@ -8,7 +8,12 @@
     <string name="offline_mesh_description">Communicate directly with nearby devices using Bluetooth and Wi‑Fi Direct. No cell towers, no internet, no problem.</string>
     <string name="enter_mesh">Enter Mesh</string>
     <string name="please_wait">Please wait…</string>
-
+<string name="appearance">Appearance</string>
+<string name="theme">Theme</string>
+<string name="dark">Dark</string>
+<string name="light">Light</string>
+<string name="system_power_settings">System Power Settings</string>
+<string name="system_power_settings_description">Open Android battery saver settings</string>
     <!-- Chats -->
     <string name="chats_title">Chats</string>
     <string name="chats">Chats</string>
