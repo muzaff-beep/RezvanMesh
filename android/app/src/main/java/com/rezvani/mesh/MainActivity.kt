@@ -6,11 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -93,10 +91,14 @@ class MainActivity : ComponentActivity() {
         }
 
         // Apply initial power state
-        applyPowerStateFromSettings()
+        val prefs = getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
+        val powerOverride = prefs.getString("power_override", null)?.let { PowerState.valueOf(it) }
+        if (powerOverride != null) {
+            PowerProfileManager.applyPowerState(this, powerOverride)
+        }
 
         setContent {
-            val darkMode by prefsFlow()   // observe dark mode preference
+            val darkMode = getDarkModeState()
             RezvanMeshTheme(darkTheme = darkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -109,20 +111,10 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun prefsFlow(): State<Boolean> {
-        // This could be replaced with a proper StateFlow from ViewModel
+    fun getDarkModeState(): Boolean {
         val prefs = remember { getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE) }
         var dark by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
-        // Listen for changes (simplified – real app would use OnPreferenceChangeListener)
-        return mutableStateOf(dark)
-    }
-
-    private fun applyPowerStateFromSettings() {
-        val prefs = getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
-        val powerOverride = prefs.getString("power_override", null)?.let { PowerState.valueOf(it) }
-        if (powerOverride != null) {
-            PowerProfileManager.applyPowerState(this, powerOverride)
-        }
+        return dark
     }
 
     private fun requestAllPermissions() {
@@ -137,15 +129,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startRadioService() { ... } // unchanged
+    private fun startRadioService() {
+        try {
+            val intent = Intent(this, RezvanRadioService::class.java)
+            startForegroundService(intent)
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start radio service", e)
+        }
+    }
 
-    private fun unbindRadioService() { ... } // unchanged
+    private fun unbindRadioService() {
+        if (isServiceBound.value) {
+            try { unbindService(serviceConnection) } catch (_: Exception) {}
+            isServiceBound.value = false
+        }
+    }
 
-    private fun hasLocationPermission(): Boolean { ... } // unchanged
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
 
-    private fun hasMacPermission(): Boolean { ... } // unchanged
+    private fun hasMacPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, PERMISSION_LOCAL_MAC_ADDRESS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
 
-    private suspend fun ensureIdentityExists() { ... } // unchanged
+    private suspend fun ensureIdentityExists() {
+        val existingSeed = IdentityBackupHelper.loadSeed(this)
+        if (existingSeed == null) {
+            Log.i(TAG, "No identity found — deriving from MAC")
+            val seed = if (hasMacPermission()) {
+                MacIdentityProvider.deriveSeed(this)
+            } else null
+            if (seed != null) MacIdentityProvider.saveSeed(this, seed)
+            else {
+                val randomSeed = ByteArray(32)
+                java.security.SecureRandom().nextBytes(randomSeed)
+                MacIdentityProvider.saveSeed(this, randomSeed)
+            }
+        }
+    }
 
     companion object {
         private const val TAG = "MainActivity"
