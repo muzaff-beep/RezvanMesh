@@ -8,12 +8,7 @@
     <string name="offline_mesh_description">Communicate directly with nearby devices using Bluetooth and Wi‑Fi Direct. No cell towers, no internet, no problem.</string>
     <string name="enter_mesh">Enter Mesh</string>
     <string name="please_wait">Please wait…</string>
-<string name="appearance">Appearance</string>
-<string name="theme">Theme</string>
-<string name="dark">Dark</string>
-<string name="light">Light</string>
-<string name="system_power_settings">System Power Settings</string>
-<string name="system_power_settings_description">Open Android battery saver settings</string>
+
     <!-- Chats -->
     <string name="chats_title">Chats</string>
     <string name="chats">Chats</string>
@@ -87,6 +82,10 @@
     <string name="settings_title">Settings</string>
     <string name="identity">Identity</string>
     <string name="node_id">Node ID</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme">Theme</string>
+    <string name="dark">Dark</string>
+    <string name="light">Light</string>
     <string name="language_region">Language &amp; Region</string>
     <string name="language">Language</string>
     <string name="language_farsi">فارسی</string>
@@ -104,6 +103,8 @@
     <string name="select_power_profile">Select Power Profile</string>
     <string name="reset_to_auto">Reset to Auto</string>
     <string name="auto_adaptive">Auto (Adaptive)</string>
+    <string name="system_power_settings">System Power Settings</string>
+    <string name="system_power_settings_description">Open Android battery saver settings</string>
     <string name="storage">Storage</string>
     <string name="storage_used">Storage Used</string>
     <string name="clear_old_messages">Clear Old Messages</string>
@@ -117,16 +118,14 @@
     <string name="about_description">Rezvan Mesh is a decentralized, offline mesh communication app designed for emergency and community use.</string>
     <string name="version_format">Version %s</string>
     <string name="open_source_notice">This software is open source and built for the people.</string>
-    <string name="close">Close</string>
-    <string name="confirm">Confirm</string>
-
-    <!-- Crash Logs -->
     <string name="crash_logs">Crash Logs</string>
     <string name="crash_logs_description">Saved to Documents and Downloads</string>
     <string name="crash_logs_info">If the app crashes, a log file is automatically saved to your Documents and Downloads folders. Look for files named rezvan_crash_*.txt.</string>
     <string name="documents_folder">Documents folder</string>
     <string name="downloads_folder">Downloads folder</string>
     <string name="bug_report">Bug Report</string>
+    <string name="close">Close</string>
+    <string name="confirm">Confirm</string>
 
     <!-- General -->
     <string name="back">Back</string>
