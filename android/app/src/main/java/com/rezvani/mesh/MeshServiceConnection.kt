@@ -1,8 +1,7 @@
 package com.rezvani.mesh
 
-import android.content.BroadcastReceiver
 import android.app.Activity
-import com.rezvani.mesh.utils.PowerProfileManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -10,11 +9,11 @@ import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.rezvani.mesh.radio.ActionDispatcher
 import com.rezvani.mesh.radio.RezvanRadioService
+import com.rezvani.mesh.utils.PowerProfileManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.*
 
 object MeshServiceConnection {
     private const val TAG = "MeshServiceConnection"
@@ -36,6 +35,13 @@ object MeshServiceConnection {
     private val _isServiceConnected = MutableStateFlow(false)
     val isServiceConnected: StateFlow<Boolean> = _isServiceConnected.asStateFlow()
 
+    // Placeholder mesh data – later populated from native engine
+    private val _nodeCount = MutableStateFlow(8)
+    val nodeCount: StateFlow<Int> = _nodeCount.asStateFlow()
+
+    private val _signalStrength = MutableStateFlow("-68")
+    val signalStrength: StateFlow<String> = _signalStrength.asStateFlow()
+
     private var messageReceiver: BroadcastReceiver? = null
     private var batteryReceiver: BroadcastReceiver? = null
 
@@ -48,7 +54,6 @@ object MeshServiceConnection {
         _isServiceConnected.value = true
         Log.i(TAG, "Service connected, corePtr = $ptr")
 
-        // Only start polling if a valid engine pointer exists
         if (ptr != null && ptr != 0L) {
             startPowerStatePolling()
         }
@@ -59,6 +64,10 @@ object MeshServiceConnection {
         _meshCorePtr.value = null
         _isServiceConnected.value = false
         serviceScope.cancel()
+    }
+
+    fun applyPowerState(activity: Activity?) {
+        PowerProfileManager.applyPowerState(activity, _powerState.value)
     }
 
     fun registerReceivers(context: Context) {
