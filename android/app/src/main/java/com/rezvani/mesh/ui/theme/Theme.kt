@@ -2,8 +2,7 @@ package com.rezvani.mesh.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.Composable
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryGreen,
@@ -28,7 +27,7 @@ private val DarkColorScheme = darkColorScheme(
     onErrorContainer = TextWhite,
     outline = DarkBorder,
     inverseSurface = DarkSurface,
-    inverseOnSurface = TextPrimaryDark,
+    inverseOnSurface = TextPrimaryDark
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -54,7 +53,7 @@ private val LightColorScheme = lightColorScheme(
     onErrorContainer = DangerRed,
     outline = LightBorder,
     inverseSurface = LightSurface,
-    inverseOnSurface = TextPrimaryLight,
+    inverseOnSurface = TextPrimaryLight
 )
 
 @Composable
@@ -63,14 +62,8 @@ fun RezvanMeshTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
     MaterialTheme(
         colorScheme = colorScheme,
         content = content
     )
-}    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-    small = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-    medium = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-    large = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
-)
+}
