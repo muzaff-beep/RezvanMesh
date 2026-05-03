@@ -26,9 +26,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private fun loadSettings() {
         val prefs = context.getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
-        val darkMode = prefs.getBoolean("dark_mode", true)
         _uiState.value = SettingsUiState(
-            darkMode = darkMode,
+            darkMode = prefs.getBoolean("dark_mode", true),
             currentLanguage = LocaleHelper.getSavedLanguage(context),
             nodeId = IdentityBackupHelper.loadNodeId(context) ?: "Unknown",
             powerOverride = prefs.getString("power_override", null)?.let { PowerState.valueOf(it) },
@@ -40,14 +39,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleDarkMode() {
-        val newValue = !_uiState.value.darkMode
-        _uiState.value = _uiState.value.copy(darkMode = newValue)
+        val newMode = !_uiState.value.darkMode
+        _uiState.value = _uiState.value.copy(darkMode = newMode)
         context.getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean("dark_mode", newValue)
-            .apply()
-        // Recreate the activity to apply theme changes
-        // The activity will listen for changes and recreate if needed
+            .edit().putBoolean("dark_mode", newMode).apply()
     }
 
     fun setLanguage(code: String) {
@@ -56,17 +51,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setPowerOverride(state: PowerState) {
-        val prefs = context.getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
-        prefs.edit().putString("power_override", state.name).apply()
+        context.getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
+            .edit().putString("power_override", state.name).apply()
         _uiState.value = _uiState.value.copy(powerOverride = state)
-        // Apply new power profile immediately if possible
-        // We'll need a reference to the current activity in a real app,
-        // but for now it will be applied via MeshServiceConnection
     }
 
     fun clearPowerOverride() {
-        val prefs = context.getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
-        prefs.edit().remove("power_override").apply()
+        context.getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
+            .edit().remove("power_override").apply()
         _uiState.value = _uiState.value.copy(powerOverride = null)
     }
 
@@ -79,7 +71,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun clearOldMessages() {
-        // TODO: Implement message cleanup via MessageRepository
+        // TODO: implement message cleanup
     }
 }
 
