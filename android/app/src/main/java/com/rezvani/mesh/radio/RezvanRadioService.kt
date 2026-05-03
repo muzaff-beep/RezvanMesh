@@ -2,6 +2,7 @@ package com.rezvani.mesh.radio
 
 import android.app.Service
 import android.content.Intent
+import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
@@ -16,6 +17,13 @@ class RezvanRadioService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
+
+    // Keep these methods so that MeshServiceConnection and RadioControllerImpl compile
+    fun getMeshCorePtr(): Long = 0L
+
+    fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
+        // Not implemented in this minimal test
+    }
 
     override fun onCreate() {
         super.onCreate()
