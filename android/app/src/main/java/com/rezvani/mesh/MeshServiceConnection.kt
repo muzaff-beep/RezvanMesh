@@ -14,13 +14,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
 
-/**
- * Manages the connection to RezvanRadioService and provides a clean API
- * for the UI layer to interact with the mesh network.
- *
- * This is a singleton object that holds the active service reference
- * and the native mesh core pointer.
- */
 object MeshServiceConnection {
     private const val TAG = "MeshServiceConnection"
 
@@ -46,38 +39,27 @@ object MeshServiceConnection {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /**
-     * Called by MainActivity when the service is connected.
-     */
     fun onServiceConnected(service: RezvanRadioService) {
         meshService = service
-        _meshCorePtr.value = service.getMeshCorePtr()
+        val ptr = service.getMeshCorePtr()
+        _meshCorePtr.value = ptr
         _isServiceConnected.value = true
-        Log.i(TAG, "Service connected, corePtr = ${_meshCorePtr.value}")
+        Log.i(TAG, "Service connected, corePtr = $ptr")
 
-        // Start periodic power state polling
-        startPowerStatePolling()
+        // Only start polling if a valid engine pointer exists
+        if (ptr != null && ptr != 0L) {
+            startPowerStatePolling()
+        }
     }
 
-    /**
-     * Called by MainActivity when the service is disconnected.
-     */
     fun onServiceDisconnected() {
         meshService = null
         _meshCorePtr.value = null
         _isServiceConnected.value = false
-        Log.i(TAG, "Service disconnected")
-
-        // Stop polling
         serviceScope.cancel()
     }
 
-    /**
-     * Registers broadcast receivers for incoming messages and battery updates.
-     * Should be called from MainActivity.onCreate().
-     */
     fun registerReceivers(context: Context) {
-        // Message receiver
         messageReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == ActionDispatcher.ACTION_NEW_MESSAGE) {
@@ -91,7 +73,6 @@ object MeshServiceConnection {
             IntentFilter(ActionDispatcher.ACTION_NEW_MESSAGE)
         )
 
-        // Battery receiver
         batteryReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val level = intent.getIntExtra("level", -1)
@@ -106,10 +87,9 @@ object MeshServiceConnection {
                                    status == android.os.BatteryManager.BATTERY_STATUS_FULL
                     _isCharging.value = charging
 
-                    // Update native core
                     meshService?.let {
                         val ptr = _meshCorePtr.value
-                        if (ptr != null) {
+                        if (ptr != null && ptr != 0L) {
                             MeshCore.nativeUpdateBattery(ptr, percent, charging)
                         }
                     }
@@ -122,10 +102,6 @@ object MeshServiceConnection {
         )
     }
 
-    /**
-     * Unregisters broadcast receivers.
-     * Should be called from MainActivity.onDestroy().
-     */
     fun unregisterReceivers(context: Context) {
         messageReceiver?.let {
             LocalBroadcastManager.getInstance(context).unregisterReceiver(it)
@@ -133,45 +109,22 @@ object MeshServiceConnection {
         batteryReceiver?.let {
             context.unregisterReceiver(it)
         }
-        messageReceiver = null
-        batteryReceiver = null
     }
 
-    /**
-     * Sends a text message to a recipient.
-     *
-     * @param recipientId 8-byte Node ID of the recipient.
-     * @param text Message text.
-     * @return true if the message was queued successfully, false otherwise.
-     */
     suspend fun sendTextMessage(recipientId: ByteArray, text: String): Boolean {
         return sendMessage(recipientId, text.toByteArray(Charsets.UTF_8), MessageType.TEXT)
     }
 
-    /**
-     * Sends a raw message to a recipient.
-     *
-     * @param recipientId 8-byte Node ID of the recipient.
-     * @param data Raw message data.
-     * @param type Message type.
-     * @return true if the message was queued successfully, false otherwise.
-     */
     suspend fun sendMessage(
         recipientId: ByteArray,
         data: ByteArray,
         type: MessageType
     ): Boolean = withContext(Dispatchers.IO) {
-        val ptr = _meshCorePtr.value
-        if (ptr == null) {
-            Log.w(TAG, "Cannot send message: service not connected")
-            return@withContext false
-        }
-
-        require(recipientId.size == 8) { "Recipient ID must be exactly 8 bytes" }
+        val ptr = _meshCorePtr.value ?: return@withContext false
+        if (ptr == 0L) return@withContext false
 
         try {
             val actions = MeshCore.nativeSendMessage(ptr, recipientId, data, type.value)
-            // Actions are dispatched automatically by the service's ActionDispatcher
             actions != null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send message", e)
@@ -179,11 +132,9 @@ object MeshServiceConnection {
         }
     }
 
-    /**
-     * Gets the current power state from the native core.
-     */
     fun refreshPowerState() {
         val ptr = _meshCorePtr.value ?: return
+        if (ptr == 0L) return
         try {
             val stateInt = MeshCore.nativeGetPowerState(ptr)
             _powerState.value = PowerState.fromInt(stateInt)
@@ -196,7 +147,7 @@ object MeshServiceConnection {
         serviceScope.launch {
             while (isActive) {
                 refreshPowerState()
-                delay(5000) // Poll every 5 seconds
+                delay(5000)
             }
         }
     }
@@ -204,7 +155,6 @@ object MeshServiceConnection {
     private fun handleDecryptedMessage(payload: ByteArray) {
         try {
             val message = parseDecryptedMessage(payload)
-            // TODO: Insert into database via MessageRepository
             Log.i(TAG, "Received message from ${message.senderId}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse decrypted message", e)
@@ -249,16 +199,12 @@ object MeshServiceConnection {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
-
             other as DecryptedMessage
-
-            if (!conversationId.contentEquals(other.conversationId)) return false
-            if (!senderId.contentEquals(other.senderId)) return false
-            if (timestamp != other.timestamp) return false
-            if (messageType != other.messageType) return false
-            if (!content.contentEquals(other.content)) return false
-
-            return true
+            return conversationId.contentEquals(other.conversationId) &&
+                   senderId.contentEquals(other.senderId) &&
+                   timestamp == other.timestamp &&
+                   messageType == other.messageType &&
+                   content.contentEquals(other.content)
         }
 
         override fun hashCode(): Int {
