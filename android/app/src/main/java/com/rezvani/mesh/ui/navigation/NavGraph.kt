@@ -1,105 +1,102 @@
 package com.rezvani.mesh.ui.navigation
 
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.rezvani.mesh.ui.screens.*
 
 @Composable
-fun NavGraph(
-    navController: NavHostController,
-    startDestination: String = "onboarding"
-) {
-    NavHost(
-        navController = navController,
-        startDestination = startDestination
-    ) {
-        composable("onboarding") {
-            // OnboardingScreen expects: onEnterMesh: () -> Unit
-            OnboardingScreen(
-                onEnterMesh = {
-                    navController.navigate("chats") {
+fun MainScreenWithBottomNav() {
+    val navController = rememberNavController()
+
+    Scaffold(
+        bottomBar = { BottomNavigationBar(navController) }
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = "onboarding",
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            composable("onboarding") {
+                OnboardingScreen(onEnterMesh = {
+                    navController.navigate("status") {
                         popUpTo("onboarding") { inclusive = true }
+                    }
+                })
+            }
+            composable("status") {
+                StatusScreen()
+            }
+            composable("chats") {
+                ChatsScreen(
+                    onConversationClick = { _, _ -> },
+                    onNewMessageClick = {},
+                    onNewChannelClick = { navController.navigate("channels") },
+                    onEmergencyClick = { navController.navigate("emergency") }
+                )
+            }
+            composable("channels") {
+                ChannelsScreen(
+                    onChannelClick = {},
+                    onCreateChannel = {}
+                )
+            }
+            composable("emergency") {
+                EmergencyScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable("settings") {
+                SettingsScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BottomNavigationBar(navController: NavHostController) {
+    val items = listOf(
+        BottomNavItem("status", "Status"),
+        BottomNavItem("chats", "Chats"),
+        BottomNavItem("channels", "Channels"),
+        BottomNavItem("emergency", "Emergency")
+    )
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        items.forEach { item ->
+            NavigationBarItem(
+                icon = {
+                    when (item.route) {
+                        "status" -> Icon(Icons.Default.Home, contentDescription = null)
+                        "chats" -> Icon(Icons.Default.Chat, contentDescription = null)
+                        "channels" -> Icon(Icons.Default.Groups, contentDescription = null)
+                        "emergency" -> Icon(Icons.Default.Warning, contentDescription = null)
+                    }
+                },
+                label = { Text(item.label) },
+                selected = currentRoute == item.route,
+                onClick = {
+                    if (currentRoute != item.route) {
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 }
             )
         }
-
-        composable("chats") {
-            // ChatsScreen expects:
-            // onConversationClick: (String, String) -> Unit
-            // onNewMessageClick: () -> Unit
-            // onNewChannelClick: () -> Unit
-            // onEmergencyClick: () -> Unit
-            ChatsScreen(
-                onConversationClick = { conversationId, _ ->
-                    navController.navigate("chat/$conversationId")
-                },
-                onNewMessageClick = {
-                    // TODO: navigate to contact picker or new message screen
-                },
-                onNewChannelClick = {
-                    navController.navigate("channels")
-                },
-                onEmergencyClick = {
-                    navController.navigate("emergency")
-                }
-            )
-        }
-
-        composable("chat/{conversationId}") { backStackEntry ->
-            val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
-            // ChatDetailScreen expects:
-            // conversationId: String, contactName: String, onNavigateBack: () -> Unit
-            ChatDetailScreen(
-                conversationId = conversationId,
-                contactName = "", // placeholder, real name from ViewModel
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
-        composable("channels") {
-            // ChannelsScreen expects:
-            // onChannelClick: (Int) -> Unit, onCreateChannel: () -> Unit
-            ChannelsScreen(
-                onChannelClick = { channelId ->
-                    // TODO: navigate to channel detail or join channel
-                },
-                onCreateChannel = {
-                    // TODO: show create channel dialog
-                }
-            )
-        }
-
-        composable("contacts") {
-            // ContactsScreen expects:
-            // onContactClick: (String) -> Unit, onAddContact: () -> Unit, onScanQrCode: () -> Unit
-            ContactsScreen(
-                onContactClick = { contactId ->
-                    // TODO: open chat with this contact
-                },
-                onAddContact = {
-                    // TODO: show add contact dialog
-                },
-                onScanQrCode = {
-                    // TODO: launch QR scanner
-                }
-            )
-        }
-
-        composable("emergency") {
-            // EmergencyScreen expects: onNavigateBack: () -> Unit
-            EmergencyScreen(
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
-        composable("settings") {
-            // SettingsScreen expects: onNavigateBack: () -> Unit
-            SettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
     }
 }
+
+data class BottomNavItem(val route: String, val label: String)
