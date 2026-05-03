@@ -1,6 +1,8 @@
 package com.rezvani.mesh
 
 import android.content.BroadcastReceiver
+import android.app.Activity
+import com.rezvani.mesh.utils.PowerProfileManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
