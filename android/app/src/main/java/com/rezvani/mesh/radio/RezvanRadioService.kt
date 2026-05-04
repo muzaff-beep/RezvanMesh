@@ -2,6 +2,7 @@ package com.rezvani.mesh.radio
 
 import android.app.Notification
 import android.app.NotificationChannel
+import com.rezvani.mesh.MeshServiceConnection
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
