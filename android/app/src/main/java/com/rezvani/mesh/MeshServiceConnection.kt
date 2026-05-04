@@ -14,6 +14,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
 
 object MeshServiceConnection {
     private const val TAG = "MeshServiceConnection"
@@ -35,11 +36,11 @@ object MeshServiceConnection {
     private val _isServiceConnected = MutableStateFlow(false)
     val isServiceConnected: StateFlow<Boolean> = _isServiceConnected.asStateFlow()
 
-    // Placeholder mesh data – later populated from native engine
-    private val _nodeCount = MutableStateFlow(8)
+    // Live mesh data – populated by raw packet reception
+    private val seenNodes = ConcurrentHashMap<String, Int>()  // nodeIdHex -> last RSSI
+    private val _nodeCount = MutableStateFlow(0)
     val nodeCount: StateFlow<Int> = _nodeCount.asStateFlow()
-
-    private val _signalStrength = MutableStateFlow("-68")
+    private val _signalStrength = MutableStateFlow("-68 dBm")
     val signalStrength: StateFlow<String> = _signalStrength.asStateFlow()
 
     private var messageReceiver: BroadcastReceiver? = null
@@ -70,6 +71,25 @@ object MeshServiceConnection {
         PowerProfileManager.applyPowerState(activity, _powerState.value)
     }
 
+    /**
+     * Called by RezvanRadioService whenever a raw packet is received.
+     * Extracts the originator Node ID and RSSI to update live mesh metrics.
+     */
+    fun onPacketReceived(packet: ByteArray, rssi: Int) {
+        try {
+            // MeshPacketHeader layout: 0:version(1B), 1:packet_type(1B), 2:ttl(1B), 3-10:originator(8B)
+            if (packet.size < 11) return
+            val originator = packet.copyOfRange(3, 11)
+            val nodeIdHex = originator.joinToString("") { "%02x".format(it) }
+            seenNodes[nodeIdHex] = rssi
+            _nodeCount.value = seenNodes.size
+            val best = seenNodes.values.maxOrNull()?.let { "$it dBm" } ?: "-68 dBm"
+            _signalStrength.value = best
+        } catch (_: Exception) {
+            // ignore malformed packets
+        }
+    }
+
     fun registerReceivers(context: Context) {
         messageReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -89,15 +109,12 @@ object MeshServiceConnection {
                 val level = intent.getIntExtra("level", -1)
                 val scale = intent.getIntExtra("scale", -1)
                 val status = intent.getIntExtra("status", -1)
-
                 if (level >= 0 && scale > 0) {
                     val percent = (level * 100 / scale)
                     _batteryLevel.value = percent
-
                     val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
                                    status == android.os.BatteryManager.BATTERY_STATUS_FULL
                     _isCharging.value = charging
-
                     meshService?.let {
                         val ptr = _meshCorePtr.value
                         if (ptr != null && ptr != 0L) {
@@ -133,7 +150,6 @@ object MeshServiceConnection {
     ): Boolean = withContext(Dispatchers.IO) {
         val ptr = _meshCorePtr.value ?: return@withContext false
         if (ptr == 0L) return@withContext false
-
         try {
             val actions = MeshCore.nativeSendMessage(ptr, recipientId, data, type.value)
             actions != null
@@ -174,20 +190,12 @@ object MeshServiceConnection {
 
     private fun parseDecryptedMessage(data: ByteArray): DecryptedMessage {
         val buffer = ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN)
-
-        val conversationId = ByteArray(16)
-        buffer.get(conversationId)
-
-        val senderId = ByteArray(8)
-        buffer.get(senderId)
-
+        val conversationId = ByteArray(16); buffer.get(conversationId)
+        val senderId = ByteArray(8); buffer.get(senderId)
         val timestamp = buffer.long
         val messageType = (buffer.get().toInt() and 0xFF)
         val contentLen = buffer.int
-
-        val content = ByteArray(contentLen)
-        buffer.get(content)
-
+        val content = ByteArray(contentLen); buffer.get(content)
         return DecryptedMessage(
             conversationId = conversationId,
             senderId = senderId,
