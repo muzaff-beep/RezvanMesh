@@ -103,12 +103,15 @@ class RezvanRadioService : Service() {
     }
 
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
-        if (meshCorePtr == 0L) return
-        val timestampUs = System.currentTimeMillis() * 1000
-        val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
-        result?.let { actionDispatcher.dispatch(it, radioController) }
-    }
+    if (meshCorePtr == 0L) return
+    val timestampUs = System.currentTimeMillis() * 1000
+    val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
+    result?.let { actionDispatcher.dispatch(it, radioController) }
 
+    // Update live status metrics
+    MeshServiceConnection.onPacketReceived(rawPacket, rssi)
+    }
+    
     private fun startForegroundWithNotification() {
         createNotificationChannel()
 
