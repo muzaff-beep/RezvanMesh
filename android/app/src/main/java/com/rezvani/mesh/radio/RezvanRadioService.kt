@@ -59,19 +59,22 @@ class RezvanRadioService : Service() {
     }
 
     override fun onCreate() {
-        super.onCreate()
-        try {
-            Log.i(TAG, "RezvanRadioService onCreate")
-            startForegroundWithNotification()
-            acquireWakeLock()
-            radioController = RadioControllerImpl(this)
-            actionDispatcher = ActionDispatcher(this)
-        } catch (e: Exception) {
-            Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
-            throw e
+    super.onCreate()
+    try {
+        Log.i(TAG, "RezvanRadioService onCreate")
+        startForegroundWithNotification()
+        acquireWakeLock()
+        radioController = RadioControllerImpl(this)
+        actionDispatcher = ActionDispatcher(this)
+
+        // Start BLE scanning so we can discover other mesh nodes
+        radioController.startBleScan(5000L, 250L)
+    } catch (e: Exception) {
+        Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
+        throw e
         }
     }
-
+    
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "RezvanRadioService onStartCommand")
         if (!isRunning.get()) {
