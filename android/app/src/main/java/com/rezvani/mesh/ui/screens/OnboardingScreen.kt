@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,7 +70,6 @@ fun OnboardingScreen(
         ) {
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Animated mesh logo
             MeshLogo(modifier = Modifier.size(200.dp))
 
             Text(
@@ -128,14 +128,8 @@ fun MeshLogo(modifier: Modifier = Modifier) {
         val center = Offset(size.width / 2, size.height / 2)
         val radius = size.minDimension / 2 * 0.6f
 
-        // Background circle
-        drawCircle(
-            color = Color(0xFF0F3D2A),
-            radius = radius,
-            center = center
-        )
+        drawCircle(color = Color(0xFF0F3D2A), radius = radius, center = center)
 
-        // Pulsing outer ring
         drawCircle(
             color = Color(0xFF1E6B4E).copy(alpha = 0.3f),
             radius = pulse,
@@ -143,7 +137,6 @@ fun MeshLogo(modifier: Modifier = Modifier) {
             style = Stroke(width = 2f)
         )
 
-        // Spinning arc
         drawArc(
             color = Color(0xFF4CAF50).copy(alpha = 0.8f),
             startAngle = rotation,
@@ -154,7 +147,6 @@ fun MeshLogo(modifier: Modifier = Modifier) {
             style = Stroke(width = 3f)
         )
 
-        // Peripheral nodes
         val nodeCount = 12
         for (i in 0 until nodeCount) {
             val angle = Math.toRadians((i * 30.0 + rotation * 0.3))
@@ -169,3 +161,13 @@ fun MeshLogo(modifier: Modifier = Modifier) {
         }
     }
 }
+
+enum class OnboardingStep {
+    WELCOME, DONE
+}
+
+data class OnboardingUiState(
+    val step: OnboardingStep = OnboardingStep.WELCOME,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
