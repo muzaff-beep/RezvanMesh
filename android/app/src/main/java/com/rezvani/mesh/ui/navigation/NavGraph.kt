@@ -1,9 +1,12 @@
 package com.rezvani.mesh.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -77,10 +80,10 @@ fun BottomNavigationBar(navController: NavHostController) {
             NavigationBarItem(
                 icon = {
                     when (item.route) {
-                        "status" -> Icon(Icons.Default.Home, contentDescription = null)
-                        "chats" -> Icon(Icons.Default.Chat, contentDescription = null)
-                        "channels" -> Icon(Icons.Default.Groups, contentDescription = null)
-                        "emergency" -> Icon(Icons.Default.Warning, contentDescription = null)
+                        "status" -> Icon(Icons.Filled.Home, contentDescription = null)
+                        "chats" -> Icon(Icons.Filled.Chat, contentDescription = null)
+                        "channels" -> Icon(Icons.Filled.Groups, contentDescription = null)
+                        "emergency" -> Icon(Icons.Filled.Warning, contentDescription = null)
                     }
                 },
                 label = { Text(item.label) },
@@ -88,7 +91,9 @@ fun BottomNavigationBar(navController: NavHostController) {
                 onClick = {
                     if (currentRoute != item.route) {
                         navController.navigate(item.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
                             launchSingleTop = true
                             restoreState = true
                         }
