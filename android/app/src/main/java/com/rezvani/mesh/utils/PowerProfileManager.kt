@@ -5,32 +5,28 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
-import android.view.WindowManager
-import com.rezvani.mesh.ui.components.PowerState
+import com.rezvani.mesh.PowerState  // unified import
 
 object PowerProfileManager {
 
     fun applyPowerState(activity: Activity?, state: PowerState) {
         applyBrightness(activity, state)
         cancelVibrations(activity)
-        // In the future we could also disable BLE/WiFi scanning from here,
-        // but currently that's managed by the native engine.
     }
 
     fun applyBrightness(activity: Activity?, state: PowerState) {
         val brightness = when (state) {
             PowerState.EMERGENCY,
-            PowerState.ACTIVE -> -1f   // system default
+            PowerState.ACTIVE -> -1f
             PowerState.BALANCED -> 0.8f
             PowerState.POWER_SAVER -> 0.5f
             PowerState.MINIMAL,
             PowerState.HIBERNATION,
             PowerState.DEAD -> 0.25f
         }
-
-        val layoutParams = activity?.window?.attributes
-        layoutParams?.screenBrightness = brightness
-        activity?.window?.attributes = layoutParams
+        activity?.window?.attributes = activity?.window?.attributes?.apply {
+            screenBrightness = brightness
+        }
     }
 
     fun cancelVibrations(context: Context?) {
@@ -58,12 +54,10 @@ object PowerProfileManager {
     }
 
     fun requestWriteSettingsPermission(activity: Activity, requestCode: Int) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.System.canWrite(activity)) {
-                val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                intent.data = android.net.Uri.parse("package:${activity.packageName}")
-                activity.startActivityForResult(intent, requestCode)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(activity)) {
+            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+            intent.data = android.net.Uri.parse("package:${activity.packageName}")
+            activity.startActivityForResult(intent, requestCode)
         }
     }
 }
