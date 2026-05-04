@@ -123,7 +123,7 @@ fun StatusScreen(
                 modifier = Modifier.weight(1f),
                 emoji = "📡",
                 label = "Scan for Devices",
-                onClick = { viewModel.refresh() }
+                onClick = { /* scanning is always active */ }
             )
             QuickActionTile(
                 modifier = Modifier.weight(1f),
