@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
-import com.rezvani.mesh.PowerState  // unified import
+import com.rezvani.mesh.PowerState
 
 object PowerProfileManager {
 
