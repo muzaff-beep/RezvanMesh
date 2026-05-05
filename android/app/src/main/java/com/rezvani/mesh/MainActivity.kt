@@ -44,6 +44,14 @@ class MainActivity : ComponentActivity() {
         startRadioService()
     }
 
+    private val bluetoothScanPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) Log.i(TAG, "Bluetooth scan permission granted")
+        else Log.w(TAG, "Bluetooth scan permission denied – BLE scanning disabled")
+        startRadioService()
+    }
+
     private val macPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -85,7 +93,7 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
-            if (seed != null && hasLocationPermission()) {
+            if (seed != null && hasRequiredPermissions()) {
                 startRadioService()
             }
         }
@@ -121,6 +129,11 @@ class MainActivity : ComponentActivity() {
         if (!hasLocationPermission()) {
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!hasBluetoothScanPermission()) {
+                bluetoothScanPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasMacPermission()) {
             macPermissionLauncher.launch(PERMISSION_LOCAL_MAC_ADDRESS)
         }
@@ -152,10 +165,26 @@ class MainActivity : ComponentActivity() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun hasBluetoothScanPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.BLUETOOTH_SCAN
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun hasMacPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this, PERMISSION_LOCAL_MAC_ADDRESS
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasRequiredPermissions(): Boolean {
+        val hasLocation = hasLocationPermission()
+        val hasBluetooth = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasBluetoothScanPermission()
+        } else {
+            true
+        }
+        return hasLocation && hasBluetooth
     }
 
     private suspend fun ensureIdentityExists() {
