@@ -1,21 +1,24 @@
 package com.rezvani.mesh.radio
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
-import com.rezvani.mesh.MeshServiceConnection
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.*
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.rezvani.mesh.MainActivity
 import com.rezvani.mesh.MeshCore
+import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.R
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -59,22 +62,35 @@ class RezvanRadioService : Service() {
     }
 
     override fun onCreate() {
-    super.onCreate()
-    try {
-        Log.i(TAG, "RezvanRadioService onCreate")
-        startForegroundWithNotification()
-        acquireWakeLock()
-        radioController = RadioControllerImpl(this)
-        actionDispatcher = ActionDispatcher(this)
+        super.onCreate()
+        try {
+            Log.i(TAG, "RezvanRadioService onCreate")
+            startForegroundWithNotification()
+            acquireWakeLock()
+            radioController = RadioControllerImpl(this)
+            actionDispatcher = ActionDispatcher(this)
 
-        // Start BLE scanning so we can discover other mesh nodes
-        radioController.startBleScan(5000L, 250L)
-    } catch (e: Exception) {
-        Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
-        throw e
+            // Start BLE scanning if we have permission
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.BLUETOOTH_SCAN
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    radioController.startBleScan(5000L, 250L)
+                } else {
+                    Log.w(TAG, "BLUETOOTH_SCAN permission not granted – BLE scanning not started")
+                }
+            } else {
+                // On older Android, the permission is granted automatically
+                radioController.startBleScan(5000L, 250L)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
+            throw e
         }
     }
-    
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "RezvanRadioService onStartCommand")
         if (!isRunning.get()) {
@@ -107,15 +123,15 @@ class RezvanRadioService : Service() {
     }
 
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
-    if (meshCorePtr == 0L) return
-    val timestampUs = System.currentTimeMillis() * 1000
-    val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
-    result?.let { actionDispatcher.dispatch(it, radioController) }
+        if (meshCorePtr == 0L) return
+        val timestampUs = System.currentTimeMillis() * 1000
+        val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
+        result?.let { actionDispatcher.dispatch(it, radioController) }
 
-    // Update live status metrics
-    MeshServiceConnection.onPacketReceived(rawPacket, rssi)
+        // Update live status metrics
+        MeshServiceConnection.onPacketReceived(rawPacket, rssi)
     }
-    
+
     private fun startForegroundWithNotification() {
         createNotificationChannel()
 
