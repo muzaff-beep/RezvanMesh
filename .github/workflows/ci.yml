@@ -7,77 +7,103 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+env:
+  CARGO_TERM_COLOR: always
 
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          java-version: '17'
           distribution: 'temurin'
+          java-version: '17'
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: aarch64-linux-android,armv7-linux-androideabi
-          override: true
+          targets: aarch64-linux-android,armv7-linux-androideabi
 
       - name: Install cargo-ndk
-        run: |
-          cargo install cargo-ndk
-          rustup target add aarch64-linux-android armv7-linux-androideabi
+        run: cargo install cargo-ndk
 
-      - name: Build Rust libraries
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Rust core for Android
+        working-directory: rust
         run: |
-          cd rust
-          cargo ndk -t arm64-v8a -t armeabi-v7a -o ../android/app/src/main/jniLibs build --release
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
+          cargo ndk -t arm64-v8a -t armeabi-v7a -o ../android/app/src/main/jniLibs build --release -p rezvan-core
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease
-        env:
-          KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Copy APK to source tree
+      # ---------- Commit APK into the repository ----------
+      - name: Copy APK to releases folder
         run: |
           mkdir -p releases
           cp android/app/build/outputs/apk/debug/app-debug.apk releases/rezvan-mesh-debug.apk
-          cp android/app/build/outputs/apk/release/app-release.apk releases/rezvan-mesh-release.apk 2>/dev/null || true
 
-      - name: Commit and push APK
+      - name: Commit and push APK (main branch pushes only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add releases/
           git diff --staged --quiet || (
-            git commit -m "Auto-commit APK [skip ci]"
+            git commit -m "Auto-commit debug APK [skip ci]"
             git push
           )
 
+      # ---------- Upload artifact for manual download ----------
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rezvan-mesh-debug
+          name: app-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
+      # ---------- Build & upload release APK (only if keystore secrets exist) ----------
+      - name: Build release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ "$KEYSTORE_BASE64" != "" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
+            export KEYSTORE_PATH="$(pwd)/keystore.jks"
+            ./gradlew assembleRelease
+            echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "No keystore secrets configured. Skipping release APK build."
+            echo "KEYSTORE_EXISTS=false" >> $GITHUB_ENV
+          fi
+
       - name: Upload release APK artifact
+        if: env.KEYSTORE_EXISTS == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: rezvan-mesh-release
+          name: app-release
           path: android/app/build/outputs/apk/release/app-release.apk
 
-      - name: Create Release (tags only)
+      # ---------- Create a GitHub Release only on version tags ----------
+      - name: Create Release and Upload APKs
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
