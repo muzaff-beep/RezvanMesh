@@ -6,14 +6,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.*
-import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -22,8 +20,7 @@ import com.rezvani.mesh.MainActivity
 import com.rezvani.mesh.MeshCore
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.R
-import java.text.SimpleDateFormat
-import java.util.*
+import com.rezvani.mesh.utils.DiagLogger
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RezvanRadioService : Service() {
@@ -70,7 +67,6 @@ class RezvanRadioService : Service() {
             radioController = RadioControllerImpl(this)
             actionDispatcher = ActionDispatcher(this)
 
-            // Start BLE scanning if we have permission
             var scanStarted = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ContextCompat.checkSelfPermission(
@@ -84,10 +80,10 @@ class RezvanRadioService : Service() {
                 radioController.startBleScan(5000L, 250L)
                 scanStarted = true
             }
-            writeDiag("BLE scan " + if (scanStarted) "started" else "skipped - no permission")
+            DiagLogger.log(this, "BLE scan " + if (scanStarted) "started" else "skipped - no permission")
         } catch (e: Exception) {
             Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
-            writeDiag("Service onCreate failed: ${e.message}")
+            DiagLogger.log(this, "Service onCreate failed: ${e.message}")
             throw e
         }
     }
@@ -124,13 +120,12 @@ class RezvanRadioService : Service() {
     }
 
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
-        writeDiag("Packet received, RSSI=$rssi, len=${rawPacket.size}")
+        DiagLogger.log(this, "Packet received, RSSI=$rssi, len=${rawPacket.size}")
         if (meshCorePtr == 0L) return
         val timestampUs = System.currentTimeMillis() * 1000
         val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
         result?.let { actionDispatcher.dispatch(it, radioController) }
 
-        // Update live status metrics
         MeshServiceConnection.onPacketReceived(rawPacket, rssi)
     }
 
@@ -196,6 +191,7 @@ class RezvanRadioService : Service() {
                 if (!isRunning.get() || meshCorePtr == 0L) return
                 try {
                     val actions = MeshCore.nativeTick(meshCorePtr)
+                    DiagLogger.log(this@RezvanRadioService, "Tick: ${actions?.size ?: 0} actions")
                     actions?.let { actionDispatcher.dispatch(it, radioController) }
                     updateBatteryInfo()
                 } catch (e: Exception) {
@@ -223,27 +219,6 @@ class RezvanRadioService : Service() {
         val prefs = getSharedPreferences(PREFS_IDENTITY, Context.MODE_PRIVATE)
         val encoded = prefs.getString(KEY_SEED, null) ?: return null
         return Base64.decode(encoded, Base64.NO_WRAP)
-    }
-
-    // ---- diagnostic file writer (public Downloads folder) ----
-
-    private fun writeDiag(msg: String) {
-        try {
-            val ts = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
-            val line = "$ts  $msg\n"
-            val filename = "diag.txt"
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            }
-            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            uri?.let {
-                contentResolver.openOutputStream(it, "wa")?.use { os ->
-                    os.write(line.toByteArray())
-                }
-            }
-        } catch (_: Exception) { }
     }
 
     companion object {
