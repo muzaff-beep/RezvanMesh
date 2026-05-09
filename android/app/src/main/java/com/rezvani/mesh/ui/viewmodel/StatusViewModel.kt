@@ -5,10 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.ui.screens.ActivityItem
 import com.rezvani.mesh.ui.screens.ActivityType
+import com.rezvani.mesh.utils.DiagLogger
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 data class StatusUiState(
@@ -16,7 +14,8 @@ data class StatusUiState(
     val statusDetail: String = "No peers detected · Seeking devices...",
     val signalStrength: String = "-68 dBm",
     val avgHops: Int = 2,
-    val activityItems: List<ActivityItem> = emptyList()
+    val activityItems: List<ActivityItem> = emptyList(),
+    val logLines: List<String> = emptyList()
 )
 
 class StatusViewModel : ViewModel() {
@@ -29,30 +28,27 @@ class StatusViewModel : ViewModel() {
             combine(
                 MeshServiceConnection.nodeCount,
                 MeshServiceConnection.signalStrength,
-                MeshServiceConnection.isServiceConnected
-            ) { count, strength, connected ->
-                if (connected && count > 0) {
-                    StatusUiState(
-                        active = true,
-                        statusDetail = "$count device${if (count > 1) "s" else ""} connected · Range ~120m",
-                        signalStrength = strength,
-                        activityItems = listOf(
+                MeshServiceConnection.isServiceConnected,
+                DiagLogger.logLines
+            ) { count, strength, connected, logs ->
+                val active = connected && count > 0
+                StatusUiState(
+                    active = active,
+                    statusDetail = if (connected && count > 0) {
+                        "$count device${if (count > 1) "s" else ""} connected · Range ~120m"
+                    } else if (connected) {
+                        "Listening for devices…"
+                    } else {
+                        "Service disconnected"
+                    },
+                    signalStrength = strength,
+                    activityItems = if (active) {
+                        listOf(
                             ActivityItem("Mesh established with $count device${if (count > 1) "s" else ""}", "just now", ActivityType.JOIN)
                         )
-                    )
-                } else if (connected) {
-                    StatusUiState(
-                        active = false,
-                        statusDetail = "Listening for devices…",
-                        signalStrength = "-68 dBm"
-                    )
-                } else {
-                    StatusUiState(
-                        active = false,
-                        statusDetail = "Service disconnected",
-                        signalStrength = "-68 dBm"
-                    )
-                }
+                    } else emptyList(),
+                    logLines = logs
+                )
             }.collect { _uiState.value = it }
         }
     }
