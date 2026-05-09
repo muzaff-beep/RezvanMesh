@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.rezvani.mesh.utils.DiagLogger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -27,6 +28,7 @@ class ActionDispatcher(private val context: Context) {
 
         val count = (buffer.get().toInt() and 0xFF)
         Log.d(TAG, "Dispatching $count actions")
+        DiagLogger.log(context, "Dispatching $count actions")
 
         repeat(count) {
             if (buffer.remaining() < 3) {
