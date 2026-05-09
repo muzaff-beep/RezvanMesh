@@ -27,6 +27,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.rezvani.mesh.utils.DiagLogger
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.IOException
@@ -75,7 +76,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    override fun startBleScan(intervalMs: Long, windowMs: Long) {
+    // ... (many methods follow; advertising callback is near the middle of the file) ...
+        override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
             Log.w(TAG, "Bluetooth not enabled; cannot start scan")
             return
@@ -158,10 +160,16 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             Log.d(TAG, "BLE advertising started")
+            radioService?.let {
+                DiagLogger.log(it, "BLE advertising started")
+            }
         }
 
         override fun onStartFailure(errorCode: Int) {
             Log.e(TAG, "BLE advertising failed: $errorCode")
+            radioService?.let {
+                DiagLogger.log(it, "BLE advertising FAILED: $errorCode")
+            }
             isAdvertising = false
         }
     }
