@@ -20,6 +20,9 @@ import com.rezvani.mesh.MainActivity
 import com.rezvani.mesh.MeshCore
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.R
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RezvanRadioService : Service() {
@@ -42,10 +45,6 @@ class RezvanRadioService : Service() {
 
     fun getMeshCorePtr(): Long = meshCorePtr
 
-    /**
-     * Initialises the mesh engine with the given seed.
-     * Called after onboarding completes (identity seed is available).
-     */
     fun initializeMeshEngine(seed: ByteArray) {
         if (meshCorePtr != 0L) {
             Log.w(TAG, "Mesh engine already initialised")
@@ -71,22 +70,23 @@ class RezvanRadioService : Service() {
             actionDispatcher = ActionDispatcher(this)
 
             // Start BLE scanning if we have permission
+            var scanStarted = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.BLUETOOTH_SCAN
+                        this, Manifest.permission.BLUETOOTH_SCAN
                     ) == PackageManager.PERMISSION_GRANTED
                 ) {
                     radioController.startBleScan(5000L, 250L)
-                } else {
-                    Log.w(TAG, "BLUETOOTH_SCAN permission not granted – BLE scanning not started")
+                    scanStarted = true
                 }
             } else {
-                // On older Android, the permission is granted automatically
                 radioController.startBleScan(5000L, 250L)
+                scanStarted = true
             }
+            writeDiag("BLE scan " + if (scanStarted) "started" else "skipped - no permission")
         } catch (e: Exception) {
             Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
+            writeDiag("Service onCreate failed: ${e.message}")
             throw e
         }
     }
@@ -123,6 +123,7 @@ class RezvanRadioService : Service() {
     }
 
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
+        writeDiag("Packet received, RSSI=$rssi, len=${rawPacket.size}")
         if (meshCorePtr == 0L) return
         val timestampUs = System.currentTimeMillis() * 1000
         val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
@@ -221,6 +222,18 @@ class RezvanRadioService : Service() {
         val prefs = getSharedPreferences(PREFS_IDENTITY, Context.MODE_PRIVATE)
         val encoded = prefs.getString(KEY_SEED, null) ?: return null
         return Base64.decode(encoded, Base64.NO_WRAP)
+    }
+
+    // ---- tiny diagnostic file writer ----
+
+    private fun writeDiag(msg: String) {
+        try {
+            val ts = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+            val line = "$ts  $msg\n"
+            val dir = getExternalFilesDir(null) ?: filesDir
+            val file = File(dir, "diag.txt")
+            file.appendText(line)
+        } catch (_: Exception) { }
     }
 
     companion object {
