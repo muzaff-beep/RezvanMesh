@@ -44,17 +44,20 @@ class RezvanRadioService : Service() {
     fun getMeshCorePtr(): Long = meshCorePtr
 
     fun initializeMeshEngine(seed: ByteArray) {
+        DiagLogger.log(this, "initializeMeshEngine called")
         if (meshCorePtr != 0L) {
             Log.w(TAG, "Mesh engine already initialised")
+            DiagLogger.log(this, "Engine already initialised, ptr=$meshCorePtr")
             return
         }
         try {
             val storagePath = filesDir.absolutePath
             meshCorePtr = MeshCore.nativeInit(seed, storagePath)
-            Log.i(TAG, "MeshCore initialised, ptr = $meshCorePtr")
+            DiagLogger.log(this, "MeshCore initialised, ptr=$meshCorePtr")
             startPeriodicTick()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize mesh engine", e)
+            DiagLogger.log(this, "nativeInit failed: ${e.message}")
         }
     }
 
@@ -95,12 +98,14 @@ class RezvanRadioService : Service() {
             try {
                 val seed = loadIdentitySeed()
                 if (seed != null) {
+                    DiagLogger.log(this, "Seed found, calling initializeMeshEngine")
                     initializeMeshEngine(seed)
                 } else {
-                    Log.i(TAG, "No identity seed yet – waiting for onboarding")
+                    DiagLogger.log(this, "No identity seed yet – waiting for onboarding")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start command", e)
+                DiagLogger.log(this, "onStartCommand error: ${e.message}")
             }
         }
         return START_STICKY
@@ -188,7 +193,15 @@ class RezvanRadioService : Service() {
     private fun startPeriodicTick() {
         tickHandler.post(object : Runnable {
             override fun run() {
-                if (!isRunning.get() || meshCorePtr == 0L) return
+                if (!isRunning.get()) {
+                    DiagLogger.log(this@RezvanRadioService, "Tick skipped - service not running")
+                    return
+                }
+                if (meshCorePtr == 0L) {
+                    DiagLogger.log(this@RezvanRadioService, "Tick skipped - meshCorePtr is 0 (engine not initialised?)")
+                    tickHandler.postDelayed(this, TICK_INTERVAL_MS)
+                    return
+                }
                 try {
                     val actions = MeshCore.nativeTick(meshCorePtr)
                     DiagLogger.log(this@RezvanRadioService, "Tick: ${actions?.size ?: 0} actions")
@@ -196,6 +209,7 @@ class RezvanRadioService : Service() {
                     updateBatteryInfo()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in periodic tick", e)
+                    DiagLogger.log(this@RezvanRadioService, "Tick error: ${e.message}")
                 }
                 tickHandler.postDelayed(this, TICK_INTERVAL_MS)
             }
