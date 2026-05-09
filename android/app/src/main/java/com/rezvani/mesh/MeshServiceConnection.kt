@@ -2,9 +2,12 @@ package com.rezvani.mesh
 
 import android.app.Activity
 import android.content.BroadcastReceiver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.rezvani.mesh.radio.ActionDispatcher
@@ -12,7 +15,6 @@ import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.utils.PowerProfileManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.SimpleDateFormat
@@ -40,7 +42,7 @@ object MeshServiceConnection {
     val isServiceConnected: StateFlow<Boolean> = _isServiceConnected.asStateFlow()
 
     // Live mesh data – populated by raw packet reception
-    private val seenNodes = ConcurrentHashMap<String, Int>()  // nodeIdHex -> last RSSI
+    private val seenNodes = ConcurrentHashMap<String, Int>()
     private val _nodeCount = MutableStateFlow(0)
     val nodeCount: StateFlow<Int> = _nodeCount.asStateFlow()
     private val _signalStrength = MutableStateFlow("-68 dBm")
@@ -240,18 +242,25 @@ object MeshServiceConnection {
         }
     }
 
-    // ---- tiny diagnostic file writer ----
+    // ---- tiny diagnostic file writer (public Downloads folder) ----
 
     private fun writeDiag(msg: String) {
         try {
-            // We need a context to get the external files dir. meshService may be null,
-            // but we can use the application context from the service if available.
             val ctx = meshService ?: return
             val ts = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
             val line = "$ts  $msg\n"
-            val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
-            val file = File(dir, "diag.txt")
-            file.appendText(line)
+            val filename = "diag.txt"
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            uri?.let {
+                ctx.contentResolver.openOutputStream(it, "wa")?.use { os ->
+                    os.write(line.toByteArray())
+                }
+            }
         } catch (_: Exception) { }
     }
 }
