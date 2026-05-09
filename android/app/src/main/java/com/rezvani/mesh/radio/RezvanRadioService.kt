@@ -6,12 +6,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.*
+import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -20,7 +22,6 @@ import com.rezvani.mesh.MainActivity
 import com.rezvani.mesh.MeshCore
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.R
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -224,15 +225,24 @@ class RezvanRadioService : Service() {
         return Base64.decode(encoded, Base64.NO_WRAP)
     }
 
-    // ---- tiny diagnostic file writer ----
+    // ---- diagnostic file writer (public Downloads folder) ----
 
     private fun writeDiag(msg: String) {
         try {
             val ts = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
             val line = "$ts  $msg\n"
-            val dir = getExternalFilesDir(null) ?: filesDir
-            val file = File(dir, "diag.txt")
-            file.appendText(line)
+            val filename = "diag.txt"
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            uri?.let {
+                contentResolver.openOutputStream(it, "wa")?.use { os ->
+                    os.write(line.toByteArray())
+                }
+            }
         } catch (_: Exception) { }
     }
 
