@@ -12,8 +12,11 @@ import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.utils.PowerProfileManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 object MeshServiceConnection {
@@ -77,7 +80,6 @@ object MeshServiceConnection {
      */
     fun onPacketReceived(packet: ByteArray, rssi: Int) {
         try {
-            // MeshPacketHeader layout: 0:version(1B), 1:packet_type(1B), 2:ttl(1B), 3-10:originator(8B)
             if (packet.size < 11) return
             val originator = packet.copyOfRange(3, 11)
             val nodeIdHex = originator.joinToString("") { "%02x".format(it) }
@@ -85,6 +87,8 @@ object MeshServiceConnection {
             _nodeCount.value = seenNodes.size
             val best = seenNodes.values.maxOrNull()?.let { "$it dBm" } ?: "-68 dBm"
             _signalStrength.value = best
+
+            writeDiag("MeshServiceConnection: node seen, total nodes=${seenNodes.size}")
         } catch (_: Exception) {
             // ignore malformed packets
         }
@@ -234,5 +238,20 @@ object MeshServiceConnection {
             result = 31 * result + content.contentHashCode()
             return result
         }
+    }
+
+    // ---- tiny diagnostic file writer ----
+
+    private fun writeDiag(msg: String) {
+        try {
+            // We need a context to get the external files dir. meshService may be null,
+            // but we can use the application context from the service if available.
+            val ctx = meshService ?: return
+            val ts = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+            val line = "$ts  $msg\n"
+            val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+            val file = File(dir, "diag.txt")
+            file.appendText(line)
+        } catch (_: Exception) { }
     }
 }
