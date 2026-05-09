@@ -135,16 +135,25 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Recent activity
+        // Diagnostic Log (replaces Recent Activity)
         Text(
-            text = "Recent Activity",
+            text = "Diagnostic Log",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            itemsIndexed(uiState.activityItems) { _, item ->
-                ActivityRow(item)
+
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            itemsIndexed(uiState.logLines) { _, line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
             }
         }
     }
