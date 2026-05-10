@@ -88,9 +88,14 @@ class MainActivity : ComponentActivity() {
 
         requestAllPermissions()
 
+        // Log device info (MIUI detection)
+        DiagLogger.log(this, "Manufacturer: ${Build.MANUFACTURER}, Model: ${Build.MODEL}")
+        if (Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true)) {
+            DiagLogger.log(this, "MIUI detected — verify Autostart + Battery unrestricted")
+        }
+
         lifecycleScope.launch {
             ensureIdentityExists()
-            // Small delay to let EncryptedSharedPreferences finish writing
             delay(100)
             val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
             if (seed != null) {
