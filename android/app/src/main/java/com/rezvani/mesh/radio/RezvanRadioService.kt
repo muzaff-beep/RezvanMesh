@@ -98,6 +98,7 @@ class RezvanRadioService : Service() {
             try {
                 val seed = IdentityBackupHelper.loadSeed(this)
                 if (seed != null) {
+                    DiagLogger.log(this, "Service seed bytes: ${seed.size}")
                     DiagLogger.log(this, "Seed found, calling initializeMeshEngine")
                     initializeMeshEngine(seed)
                 } else {
@@ -198,7 +199,7 @@ class RezvanRadioService : Service() {
                     return
                 }
                 if (meshCorePtr == 0L) {
-                    DiagLogger.log(this@RezvanRadioService, "Tick skipped - meshCorePtr is 0 (engine not initialised?)")
+                    DiagLogger.log(this@RezvanRadioService, "Tick skipped - meshCorePtr is 0")
                     tickHandler.postDelayed(this, TICK_INTERVAL_MS)
                     return
                 }
