@@ -47,7 +47,6 @@ jobs:
       - name: Locate Android NDK
         id: ndk
         run: |
-          # Find the first NDK directory in the SDK
           NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -1)
           echo "Found NDK at: $NDK_PATH"
           echo "ndk_path=$NDK_PATH" >> $GITHUB_OUTPUT
@@ -61,7 +60,6 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
-      # ---------- Commit APK into the repository ----------
       - name: Copy APK to releases folder
         run: |
           mkdir -p releases
@@ -72,20 +70,25 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save the new APK, pull latest remote, then restore the APK
           git add releases/
-          git diff --staged --quiet || (
+          git stash push -- releases/rezvan-mesh-debug.apk 2>/dev/null || true
+          git pull --rebase origin main
+          git stash pop 2>/dev/null || true
+
+          git add releases/
+          if ! git diff --staged --quiet; then
             git commit -m "Auto-commit debug APK [skip ci]"
             git push
-          )
+          fi
 
-      # ---------- Upload artifact for manual download ----------
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
-      # ---------- Build & upload release APK (only if keystore secrets exist) ----------
       - name: Build release APK
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -110,7 +113,6 @@ jobs:
           name: app-release
           path: android/app/build/outputs/apk/release/app-release.apk
 
-      # ---------- Create a GitHub Release only on version tags ----------
       - name: Create Release and Upload APKs
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
