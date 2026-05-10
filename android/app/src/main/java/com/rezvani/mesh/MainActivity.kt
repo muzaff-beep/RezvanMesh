@@ -25,9 +25,12 @@ import com.rezvani.mesh.backup.MacIdentityProvider
 import com.rezvani.mesh.radio.RezvanRadioService
 import com.rezvani.mesh.ui.navigation.MainScreenWithBottomNav
 import com.rezvani.mesh.ui.theme.RezvanMeshTheme
+import com.rezvani.mesh.utils.DiagLogger
 import com.rezvani.mesh.utils.LocaleHelper
 import com.rezvani.mesh.utils.PowerProfileManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -41,7 +44,7 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) Log.i(TAG, "Location permission granted")
         else Log.w(TAG, "Location permission denied – Wi‑Fi Direct disabled")
-        startRadioService()
+        startRadioServiceIfReady()
     }
 
     private val bluetoothScanPermissionLauncher = registerForActivityResult(
@@ -49,7 +52,7 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) Log.i(TAG, "Bluetooth scan permission granted")
         else Log.w(TAG, "Bluetooth scan permission denied – BLE scanning disabled")
-        startRadioService()
+        startRadioServiceIfReady()
     }
 
     private val macPermissionLauncher = registerForActivityResult(
@@ -87,15 +90,10 @@ class MainActivity : ComponentActivity() {
 
         requestAllPermissions()
 
+        // First ensure identity exists, then try to start the service
         lifecycleScope.launch {
             ensureIdentityExists()
-        }
-
-        lifecycleScope.launch {
-            val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
-            if (seed != null && hasRequiredPermissions()) {
-                startRadioService()
-            }
+            startRadioServiceIfReady()
         }
 
         // Apply initial power state
@@ -142,6 +140,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startRadioServiceIfReady() {
+        val seed = IdentityBackupHelper.loadSeed(this)
+        if (seed != null && hasLocationPermission()) {
+            startRadioService()
+        }
+    }
+
     private fun startRadioService() {
         try {
             val intent = Intent(this, RezvanRadioService::class.java)
@@ -177,29 +182,18 @@ class MainActivity : ComponentActivity() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun hasRequiredPermissions(): Boolean {
-        val hasLocation = hasLocationPermission()
-        val hasBluetooth = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            hasBluetoothScanPermission()
-        } else {
-            true
-        }
-        return hasLocation && hasBluetooth
-    }
-
     private suspend fun ensureIdentityExists() {
-        val existingSeed = IdentityBackupHelper.loadSeed(this)
+        val existingSeed = withContext(Dispatchers.IO) {
+            IdentityBackupHelper.loadSeed(this@MainActivity)
+        }
         if (existingSeed == null) {
             Log.i(TAG, "No identity found — deriving from MAC")
             val seed = if (hasMacPermission()) {
                 MacIdentityProvider.deriveSeed(this)
             } else null
-            if (seed != null) MacIdentityProvider.saveSeed(this, seed)
-            else {
-                val randomSeed = ByteArray(32)
-                java.security.SecureRandom().nextBytes(randomSeed)
-                MacIdentityProvider.saveSeed(this, randomSeed)
-            }
+            val finalSeed = seed ?: ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+            MacIdentityProvider.saveSeed(this, finalSeed)
+            DiagLogger.log(this, "Identity seed saved")
         }
     }
 
