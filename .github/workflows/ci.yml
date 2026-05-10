@@ -60,10 +60,9 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
-      - name: Copy APK to releases folder
+      - name: Copy APK to android/app/
         run: |
-          mkdir -p releases
-          cp android/app/build/outputs/apk/debug/app-debug.apk releases/rezvan-mesh-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/app/RezvanMesh-debug.apk
 
       - name: Commit and push APK (main branch pushes only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -71,13 +70,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Save the new APK, pull latest remote, then restore the APK
-          git add releases/
-          git stash push -- releases/rezvan-mesh-debug.apk 2>/dev/null || true
+          # Save the APK we just built, then pull the latest remote changes
+          git add android/app/RezvanMesh-debug.apk
+          git stash push -- android/app/RezvanMesh-debug.apk 2>/dev/null || true
           git pull --rebase origin main
           git stash pop 2>/dev/null || true
 
-          git add releases/
+          git add android/app/RezvanMesh-debug.apk
           if ! git diff --staged --quiet; then
             git commit -m "Auto-commit debug APK [skip ci]"
             git push
