@@ -32,4 +32,3 @@ ok "App started"
 log "Streaming logs (Ctrl+C to stop)..."
 adb logcat -c
 adb logcat $LOG_TAGS
-Make it executable: chmod +x dev.sh
