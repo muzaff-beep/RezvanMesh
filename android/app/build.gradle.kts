@@ -45,11 +45,16 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
+            buildConfigField("boolean", "DEBUG_LOOPBACK", "false")
+            buildConfigField("boolean", "DEBUG_INJECT_PEERS", "false")
         }
         debug {
             isDebuggable = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            manifestPlaceholders["debuggable"] = "false"
+            buildConfigField("boolean", "DEBUG_LOOPBACK", "true")
+            buildConfigField("boolean", "DEBUG_INJECT_PEERS", "true")
         }
     }
 
