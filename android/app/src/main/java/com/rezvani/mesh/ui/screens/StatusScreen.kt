@@ -89,7 +89,7 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Diagnostic log (keeps all the detailed messages)
+        // Diagnostic log
         Text(
             text = "Diagnostic Log",
             style = MaterialTheme.typography.labelLarge,
