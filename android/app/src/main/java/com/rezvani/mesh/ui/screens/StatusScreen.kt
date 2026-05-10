@@ -68,74 +68,28 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Health cards
+        // Live data cards: Node Count + Best RSSI
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            HealthCard(
+            LiveDataCard(
                 modifier = Modifier.weight(1f),
-                value = uiState.signalStrength,
-                label = "Nearest Node dBm",
+                value = uiState.nodeCount.toString(),
+                label = "Nodes Seen",
                 color = Color(0xFF4CAF50)
             )
-            HealthCard(
+            LiveDataCard(
                 modifier = Modifier.weight(1f),
-                value = uiState.avgHops.toString(),
-                label = "Avg Hops to Exit",
+                value = uiState.signalStrength,
+                label = "Best RSSI",
                 color = Color(0xFFFF9800)
             )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Quick actions
-        Text(
-            text = "Quick Actions",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            QuickActionTile(
-                modifier = Modifier.weight(1f),
-                emoji = "🆘",
-                label = "Emergency SOS",
-                isEmergency = true,
-                onClick = { /* navigate to emergency */ }
-            )
-            QuickActionTile(
-                modifier = Modifier.weight(1f),
-                emoji = "📢",
-                label = "Public Channel",
-                onClick = { /* navigate to channels */ }
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            QuickActionTile(
-                modifier = Modifier.weight(1f),
-                emoji = "📡",
-                label = "Scan for Devices",
-                onClick = { /* scanning is always active */ }
-            )
-            QuickActionTile(
-                modifier = Modifier.weight(1f),
-                emoji = "💬",
-                label = "Send Message",
-                onClick = { /* navigate to chats */ }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Diagnostic Log (replaces Recent Activity)
+        // Diagnostic log (keeps all the detailed messages)
         Text(
             text = "Diagnostic Log",
             style = MaterialTheme.typography.labelLarge,
@@ -160,7 +114,7 @@ fun StatusScreen(
 }
 
 @Composable
-fun HealthCard(
+fun LiveDataCard(
     modifier: Modifier = Modifier,
     value: String,
     label: String,
@@ -189,82 +143,3 @@ fun HealthCard(
         }
     }
 }
-
-@Composable
-fun QuickActionTile(
-    modifier: Modifier = Modifier,
-    emoji: String,
-    label: String,
-    isEmergency: Boolean = false,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier,
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isEmergency) MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
-            else MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = emoji, style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (isEmergency) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-fun ActivityRow(item: ActivityItem) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(
-                    when (item.type) {
-                        ActivityType.JOIN -> Color(0xFF4CAF50)
-                        ActivityType.ALERT -> Color(0xFFD32F2F)
-                        else -> Color(0xFF1E6B4E)
-                    }
-                )
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
-            Text(
-                text = item.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = item.time,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-        }
-    }
-}
-
-data class ActivityItem(
-    val text: String,
-    val time: String,
-    val type: ActivityType = ActivityType.NORMAL
-)
-
-enum class ActivityType { JOIN, ALERT, NORMAL }
