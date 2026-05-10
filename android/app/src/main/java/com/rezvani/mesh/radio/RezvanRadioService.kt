@@ -12,7 +12,6 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.*
-import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -20,6 +19,7 @@ import com.rezvani.mesh.MainActivity
 import com.rezvani.mesh.MeshCore
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.R
+import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.utils.DiagLogger
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -96,7 +96,7 @@ class RezvanRadioService : Service() {
         if (!isRunning.get()) {
             isRunning.set(true)
             try {
-                val seed = loadIdentitySeed()
+                val seed = IdentityBackupHelper.loadSeed(this)
                 if (seed != null) {
                     DiagLogger.log(this, "Seed found, calling initializeMeshEngine")
                     initializeMeshEngine(seed)
@@ -229,18 +229,10 @@ class RezvanRadioService : Service() {
         }
     }
 
-    private fun loadIdentitySeed(): ByteArray? {
-        val prefs = getSharedPreferences(PREFS_IDENTITY, Context.MODE_PRIVATE)
-        val encoded = prefs.getString(KEY_SEED, null) ?: return null
-        return Base64.decode(encoded, Base64.NO_WRAP)
-    }
-
     companion object {
         private const val TAG = "RezvanRadioService"
         private const val CHANNEL_ID = "rezvan_mesh_channel"
         private const val NOTIFICATION_ID = 1001
         private const val TICK_INTERVAL_MS = 1000L
-        private const val PREFS_IDENTITY = "rezvan_identity"
-        private const val KEY_SEED = "identity_seed"
     }
 }
