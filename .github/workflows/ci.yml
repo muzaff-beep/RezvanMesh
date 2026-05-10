@@ -70,12 +70,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Save the APK we just built, then pull the latest remote changes
-          git add android/app/RezvanMesh-debug.apk
-          git stash push -- android/app/RezvanMesh-debug.apk 2>/dev/null || true
+          # Stash everything (including changed .so files), then pull latest remote
+          git stash push --include-untracked -m "auto-stash"
           git pull --rebase origin main
-          git stash pop 2>/dev/null || true
 
+          # Restore our stashed files so the APK is back
+          git stash pop
+
+          # Only commit the APK file (ignore other changes)
           git add android/app/RezvanMesh-debug.apk
           if ! git diff --staged --quiet; then
             git commit -m "Auto-commit debug APK [skip ci]"
