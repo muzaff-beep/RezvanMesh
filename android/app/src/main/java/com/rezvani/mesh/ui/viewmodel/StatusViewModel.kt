@@ -3,8 +3,6 @@ package com.rezvani.mesh.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rezvani.mesh.MeshServiceConnection
-import com.rezvani.mesh.ui.screens.ActivityItem
-import com.rezvani.mesh.ui.screens.ActivityType
 import com.rezvani.mesh.utils.DiagLogger
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,8 +11,7 @@ data class StatusUiState(
     val active: Boolean = false,
     val statusDetail: String = "No peers detected · Seeking devices...",
     val signalStrength: String = "-68 dBm",
-    val avgHops: Int = 2,
-    val activityItems: List<ActivityItem> = emptyList(),
+    val nodeCount: Int = 0,
     val logLines: List<String> = emptyList()
 )
 
@@ -34,19 +31,15 @@ class StatusViewModel : ViewModel() {
                 val active = connected && count > 0
                 StatusUiState(
                     active = active,
-                    statusDetail = if (connected && count > 0) {
-                        "$count device${if (count > 1) "s" else ""} connected · Range ~120m"
+                    statusDetail = if (active) {
+                        "$count device${if (count > 1) "s" else ""} connected"
                     } else if (connected) {
                         "Listening for devices…"
                     } else {
                         "Service disconnected"
                     },
                     signalStrength = strength,
-                    activityItems = if (active) {
-                        listOf(
-                            ActivityItem("Mesh established with $count device${if (count > 1) "s" else ""}", "just now", ActivityType.JOIN)
-                        )
-                    } else emptyList(),
+                    nodeCount = count,
                     logLines = logs
                 )
             }.collect { _uiState.value = it }
