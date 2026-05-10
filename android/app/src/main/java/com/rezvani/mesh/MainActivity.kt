@@ -28,9 +28,7 @@ import com.rezvani.mesh.ui.theme.RezvanMeshTheme
 import com.rezvani.mesh.utils.DiagLogger
 import com.rezvani.mesh.utils.LocaleHelper
 import com.rezvani.mesh.utils.PowerProfileManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 
 class MainActivity : ComponentActivity() {
 
@@ -90,13 +88,19 @@ class MainActivity : ComponentActivity() {
 
         requestAllPermissions()
 
-        // First ensure identity exists, then try to start the service
         lifecycleScope.launch {
             ensureIdentityExists()
+            // Small delay to let EncryptedSharedPreferences finish writing
+            delay(100)
+            val seed = IdentityBackupHelper.loadSeed(this@MainActivity)
+            if (seed != null) {
+                DiagLogger.log(this@MainActivity, "Seed verified before starting service")
+            } else {
+                DiagLogger.log(this@MainActivity, "ERROR: Seed missing after save!")
+            }
             startRadioServiceIfReady()
         }
 
-        // Apply initial power state
         val prefs = getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
         val powerOverride = prefs.getString("power_override", null)?.let { PowerState.valueOf(it) }
         if (powerOverride != null) {
