@@ -2,9 +2,7 @@ package com.rezvani.mesh.ui.screens
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Environment
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -35,6 +33,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun StatusScreen(
     viewModel: StatusViewModel = viewModel()
@@ -43,7 +42,6 @@ fun StatusScreen(
     val haptics = LocalHapticFeedback.current
     val uiState by viewModel.uiState.collectAsState()
 
-    // local filter state
     var activeTag by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showErrorsOnly by remember { mutableStateOf(false) }
@@ -65,7 +63,7 @@ fun StatusScreen(
     ) {
         Spacer(modifier = Modifier.height(24.dp))
 
-        // ── Build provenance banner ──
+        // Build provenance banner
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
@@ -81,12 +79,12 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── Mesh status banner (long‑press mock peer) ──
+        // Mesh status banner (long‑press mock peer)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                    onClick = { /* normal tap */ },
+                    onClick = { },
                     onLongClick = {
                         if (BuildConfig.DEBUG_INJECT_PEERS) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -128,7 +126,7 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── Live data cards ──
+        // Live data cards
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -139,7 +137,7 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── Diagnostic section header + tools ──
+        // Diagnostic section header + tools
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -166,7 +164,7 @@ fun StatusScreen(
             }
         }
 
-        // ── Tag filter chips ──
+        // Tag filter chips
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -182,7 +180,7 @@ fun StatusScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ── Search bar + error‑only toggle ──
+        // Search bar + error‑only toggle
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -206,7 +204,7 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ── Log list ──
+        // Log list
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -234,7 +232,6 @@ fun LiveDataCard(modifier: Modifier, value: String, label: String, color: Color)
     }
 }
 
-/** Export last 2000 entries as a timestamped text file to external files, returns the File for sharing */
 private fun exportLogs(context: Context): File? {
     return try {
         val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
