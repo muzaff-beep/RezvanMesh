@@ -29,7 +29,9 @@ class StatusViewModel : ViewModel() {
                 MeshServiceConnection.nodeCount,
                 MeshServiceConnection.signalStrength,
                 MeshServiceConnection.isServiceConnected,
-                DiagLogger.logLines
+                DiagLogger.entries
+                    .map { entries -> entries.map { it.formatted() } }
+                    .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
             ) { count, strength, connected, logs ->
                 val active = connected && count > 0
                 StatusUiState(
@@ -49,39 +51,26 @@ class StatusViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Injects a synthetic OGM packet directly into the native engine,
-     * simulating a peer discovery. Only used in debug builds.
-     */
     fun injectMockPeer() {
         viewModelScope.launch {
             try {
                 val mockId = ByteArray(16) { (0xA0 + mockCounter).toByte() }
                 mockCounter++
 
-                // Build a minimal OGM packet matching MeshPacketHeader + OGMPayload layout
                 val ogm = ByteArray(62).apply {
-                    // MeshPacketHeader
-                    this[0] = 0x01             // version
-                    this[1] = 0x01             // packet_type = OGM
-                    this[2] = 0x0A             // ttl = 10
-                    System.arraycopy(mockId, 0, this, 3, 8)  // originator (8 bytes)
-                    this[11] = 0x01            // hop_count = 1
-                    // payload_len = 50 at offset 10-11 (big-endian)
-                    this[10] = 0x00
-                    this[11] = 0x32
-                    // OGMPayload
-                    this[18] = 200.toByte()     // link_quality
-                    this[22] = 0x01            // neighbor_count = 1
+                    this[0] = 0x01; this[1] = 0x01; this[2] = 0x0A
+                    System.arraycopy(mockId, 0, this, 3, 8)
+                    this[10] = 0x00; this[11] = 0x32
+                    this[18] = 200.toByte(); this[22] = 0x01
                 }
 
                 val ptr = MeshServiceConnection.meshCorePtr.value
                 if (ptr != null && ptr != 0L) {
                     MeshCore.nativeProcessIncoming(ptr, ogm, -50, System.currentTimeMillis() * 1000)
-                    DiagLogger.log("Mock peer injected, RSSI=-50")
+                    DiagLogger.ble("Mock peer injected, RSSI=-50")
                 }
             } catch (e: Exception) {
-                DiagLogger.log("Mock inject failed: ${e.message}")
+                DiagLogger.rust("Mock inject failed: ${e.message}")
             }
         }
     }
