@@ -60,6 +60,9 @@ fun MainScreenWithBottomNav() {
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
+            composable("diagnostics") {
+                DiagnosticsScreen()
+            }
         }
     }
 }
@@ -91,9 +94,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 onClick = {
                     if (currentRoute != item.route) {
                         navController.navigate(item.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
