@@ -50,8 +50,11 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val rxTotal = AtomicLong(0)
     private val rxLoopback = AtomicLong(0)
     private val rxPeer = AtomicLong(0)
-    private val rxScanAll = AtomicLong(0)      // all scan results received
+    private val rxScanAll = AtomicLong(0)
     private val txStarts = AtomicLong(0)
+
+    // Limit raw diagnostic spam to the first few results
+    private val rawLogLimit = AtomicLong(5)
 
     private val heartbeatHandler = Handler(Looper.getMainLooper())
     private val heartbeatRunnable = object : Runnable {
@@ -117,7 +120,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         startHeartbeat()
     }
 
-    // ── BLE Scanning (continuous, no hardware filter) ────────────────────
+    // ── BLE Scanning (extended‑advertisement‑compatible) ───────────────
 
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
@@ -131,12 +134,16 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         if (isScanning.get()) return
         isScanning.set(true)
 
-        val settings = ScanSettings.Builder()
+        val settingsBuilder = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0)
-            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            settingsBuilder.setLegacy(false)                 // accept extended advertisements
+            settingsBuilder.setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
+        }
+        val settings = settingsBuilder.build()
 
-        DiagLogger.ble("BLE scan starting – continuous")
+        DiagLogger.ble("BLE scan starting – extended‑compatible")
         bleScanner?.startScan(null, settings, scanCallback)
     }
 
@@ -155,13 +162,26 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             rxScanAll.incrementAndGet()
 
             val scanRecord = result.scanRecord ?: return
+
+            // Log raw manufacturer data for first few results
+            if (rawLogLimit.get() > 0) {
+                val mfrIds = mutableListOf<Int>()
+                scanRecord.getManufacturerSpecificData()?.let { data ->
+                    for (key in data.keySet()) mfrIds.add(key)
+                }
+                if (mfrIds.isNotEmpty()) {
+                    DiagLogger.ble("raw_scan", "addr" to result.device.address.takeLast(5),
+                        "rssi" to result.rssi.toString(), "mfr_ids" to mfrIds.joinToString(","))
+                }
+                rawLogLimit.decrementAndGet()
+            }
+
             val manufacturerData = scanRecord.getManufacturerSpecificData(MANUFACTURER_ID) ?: return
             if (manufacturerData.size < NODE_ID_OFFSET + NODE_ID_LEN) return
             if (manufacturerData[0] != MAGIC_BYTE_0 || manufacturerData[1] != MAGIC_BYTE_1) return
 
             rxTotal.incrementAndGet()
 
-            // Self‑detection by node ID
             val isSelf = ownNodeId?.let { own ->
                 var match = true
                 for (i in 0 until NODE_ID_LEN) {
