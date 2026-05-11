@@ -33,7 +33,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private var bleScanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
     private var bleAdvertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
 
-    // BLE connection tracking
     private val bleGattMap = ConcurrentHashMap<String, BluetoothGatt>()
     private val bleSenderMap = ConcurrentHashMap<String, BlePacketSender>()
     private val cachedRssiMap = ConcurrentHashMap<String, Int>()
@@ -45,11 +44,9 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private var isAdvertising = false
 
-    // Self‑ID for loopback detection (16 bytes)
     private var ownNodeId: ByteArray? = null
     private var ownBleAddress: String? = null
 
-    // WiFi Direct
     private val wifiP2pManager: WifiP2pManager? =
         context.getSystemService(Context.WIFI_P2P_SERVICE) as? WifiP2pManager
     private var wifiP2pChannel: WifiP2pManager.Channel? = null
@@ -62,9 +59,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val radioService: RezvanRadioService? =
         if (context is RezvanRadioService) context else null
 
-    /**
-     * Called by the service to set the 16‑byte node ID for loopback detection.
-     */
     fun setOwnNodeId(nodeId: ByteArray) {
         ownNodeId = nodeId
     }
@@ -76,8 +70,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             startWifiServer()
         }
     }
-
-    // ── BLE Scanning ────────────────────────────────────────────────
 
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) return
@@ -107,28 +99,14 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val bytes = result.scanRecord?.getServiceData(BLE_SERVICE_UUID) ?: return
-            if (bytes.size < 16) return
-
-            // Self‑detection via node‑ID prefix (first 16 bytes are the node ID)
-            val rxNodeId = bytes.copyOfRange(0, 16)
-            val isSelf = ownNodeId != null && rxNodeId.contentEquals(ownNodeId)
-
-            if (isSelf && !BuildConfig.DEBUG_LOOPBACK) return
-
-            if (isSelf) {
-                DiagLogger.log(context, "LOOPBACK rx, RSSI=${result.rssi}")
-            } else {
-                DiagLogger.log(context, "Peer rx RSSI=${result.rssi}")
+            val bytes = result.scanRecord?.bytes ?: return
+            if (bytes.size >= 2 && bytes[0] == 0x52.toByte() && bytes[1] == 0x56.toByte()) {
+                radioService?.onPacketReceived(bytes, result.rssi)
             }
-
-            // Forward to the service (skip the node‑ID prefix if the engine expects raw payload)
-            val rawPacket = bytes.copyOfRange(16, bytes.size)
-            radioService?.onPacketReceived(rawPacket, result.rssi)
         }
 
         override fun onScanFailed(errorCode: Int) {
-            DiagLogger.log(context, "BLE scan FAILED code=$errorCode")
+            DiagLogger.ble("BLE scan FAILED code=$errorCode")
         }
     }
 
@@ -138,14 +116,9 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
 
-    // ── BLE Advertising ─────────────────────────────────────────────
-
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) return
         if (isAdvertising) stopBleAdvertising()
-
-        // Prepend our node ID for self‑identification
-        val taggedPayload = (ownNodeId ?: ByteArray(16)) + adData
 
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -155,7 +128,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
         val data = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
-            .addServiceData(BLE_SERVICE_UUID, taggedPayload)
+            .addManufacturerData(MANUFACTURER_ID, adData)
             .build()
 
         bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
@@ -171,27 +144,21 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             Log.d(TAG, "BLE advertising started")
             ownBleAddress = bluetoothAdapter?.address
-            DiagLogger.log(context, "BLE advertising started (loopback=${BuildConfig.DEBUG_LOOPBACK})")
+            DiagLogger.ble("BLE advertising started (loopback=${BuildConfig.DEBUG_LOOPBACK})")
         }
 
         override fun onStartFailure(errorCode: Int) {
             Log.e(TAG, "BLE advertising FAILED: $errorCode")
-            DiagLogger.log(context, "BLE advertising FAILED: $errorCode")
+            DiagLogger.ble("BLE advertising FAILED: $errorCode")
             isAdvertising = false
         }
     }
 
-    // ── BLE Connections ─────────────────────────────────────────────
-
-    override fun connectToPeer(peerMacAddress: String): Boolean { /* unchanged */ return true }
+    override fun connectToPeer(peerMacAddress: String): Boolean { return true }
     override fun sendBlePacket(peerMacAddress: String, data: ByteArray): Boolean { return false }
     override fun disconnectPeer(peerMacAddress: String) {}
 
-    private val gattCallback = object : BluetoothGattCallback() {
-        // ... unchanged ...
-    }
-
-    // ── WiFi Direct ─────────────────────────────────────────────────
+    private val gattCallback = object : BluetoothGattCallback() {}
 
     override fun isWifiDirectSupported() = wifiP2pManager != null
     override fun startWifiDirectDiscovery() {}
@@ -216,6 +183,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     companion object {
         private const val TAG = "RadioControllerImpl"
+        private const val MANUFACTURER_ID = 0xFFFF
         private val BLE_SERVICE_UUID = ParcelUuid(UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb"))
         const val WIFI_PORT = 4237
     }
