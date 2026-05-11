@@ -35,18 +35,24 @@ object DiagLogger {
     private val _entries = MutableStateFlow<List<DiagEntry>>(emptyList())
     val entries: StateFlow<List<DiagEntry>> = _entries.asStateFlow()
 
-    /** One-shot log – fluent API */
-    fun log(context: Context, msg: String) {
-        log(context, "MAIN", Level.INFO, msg)
+    /** Must be called once from Application.onCreate() */
+    fun init(context: Context) {
+        appContext = context.applicationContext
     }
+
+    /** Primary logging method. */
     fun log(context: Context, tag: String, level: Level, msg: String) {
         val entry = DiagEntry(System.currentTimeMillis(), sessionId, tag, level, msg)
         _entries.value = (_entries.value + entry).takeLast(2000)
-
-        // ERROR logs are flushed immediately to survive crashes
         appendToDisk(context, entry, flush = level == Level.ERROR)
     }
 
+    /** Convenience overload for backward compatibility with old call sites. */
+    fun log(context: Context, msg: String) {
+        log(context, "MAIN", Level.INFO, msg)
+    }
+
+    /** Log an error with optional throwable stack trace. */
     fun err(context: Context, tag: String, msg: String, t: Throwable? = null) {
         val full = if (t != null) {
             val sw = StringWriter()
@@ -56,11 +62,15 @@ object DiagLogger {
         log(context, tag, Level.ERROR, full)
     }
 
-    /** Keep older call sites working */
-    fun ble(msg: String) { appContext?.let { log(it, "BLE", Level.INFO, msg) } }
-    fun rust(msg: String) { appContext?.let { log(it, "RUST", Level.INFO, msg) } }
+    /** Static shortcuts – require init() to have been called. */
+    fun ble(msg: String) {
+        appContext?.let { log(it, "BLE", Level.INFO, msg) }
+    }
 
-    // ---- disk persistence ----
+    fun rust(msg: String) {
+        appContext?.let { log(it, "RUST", Level.INFO, msg) }
+    }
+
     private fun appendToDisk(context: Context, entry: DiagEntry, flush: Boolean) {
         try {
             val filename = "diag.txt"
