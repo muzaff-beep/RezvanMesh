@@ -36,6 +36,15 @@ android {
         }
     }
 
+    // ---- git info for provenance banner ----
+    val gitSha = providers.exec {
+        commandLine("git", "rev-parse", "--short", "HEAD")
+    }.standardOutput.asText.get().trim()
+
+    val gitBranch = providers.exec {
+        commandLine("git", "rev-parse", "--abbrev-ref", "HEAD")
+    }.standardOutput.asText.get().trim()
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -47,6 +56,9 @@ android {
             signingConfig = signingConfigs.getByName("release")
             buildConfigField("boolean", "DEBUG_LOOPBACK", "false")
             buildConfigField("boolean", "DEBUG_INJECT_PEERS", "false")
+            buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
+            buildConfigField("String", "GIT_BRANCH", "\"$gitBranch\"")
+            buildConfigField("long", "BUILD_TIME", "${System.currentTimeMillis()}L")
         }
         debug {
             isDebuggable = true
@@ -55,6 +67,9 @@ android {
             manifestPlaceholders["debuggable"] = "false"
             buildConfigField("boolean", "DEBUG_LOOPBACK", "true")
             buildConfigField("boolean", "DEBUG_INJECT_PEERS", "true")
+            buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
+            buildConfigField("String", "GIT_BRANCH", "\"$gitBranch\"")
+            buildConfigField("long", "BUILD_TIME", "${System.currentTimeMillis()}L")
         }
     }
 
