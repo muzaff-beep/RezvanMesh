@@ -5,7 +5,6 @@ import android.content.ContentValues
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
 import com.rezvani.mesh.utils.DiagLogger
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -15,8 +14,8 @@ import java.util.*
 class RezvanApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        DiagLogger.init(this)
 
-        // Install crash dossier handler
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
@@ -47,7 +46,6 @@ class RezvanApplication : Application() {
 
             val ts = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
             val filename = "rezvan-crash-$ts-${BuildConfig.GIT_SHA}.txt"
-
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
                 put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
@@ -60,6 +58,6 @@ class RezvanApplication : Application() {
                     os.flush()
                 }
             }
-        } catch (_: Throwable) { /* must not crash */ }
+        } catch (_: Throwable) { }
     }
 }
