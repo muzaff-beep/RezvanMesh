@@ -226,6 +226,11 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             return
         }
 
+        // If already advertising, don't restart — prevents BLE stack overload
+        if (isAdvertising.get()) {
+            return
+        }
+
         if (bluetoothAdapter?.isLeExtendedAdvertisingSupported == true) {
             startExtendedAdvertising(adData)
         } else {
@@ -235,8 +240,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     }
 
     private fun startExtendedAdvertising(adData: ByteArray) {
-        if (isAdvertising.get()) stopBleAdvertising()
-
         val maxLen = bluetoothAdapter?.leMaximumAdvertisingDataLength ?: 254
         val payload = if (adData.size > maxLen) adData.copyOf(maxLen) else adData
 
@@ -285,8 +288,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     }
 
     private fun startLegacyAdvertising(adData: ByteArray) {
-        if (isAdvertising.get()) stopBleAdvertising()
-
         val truncated = if (adData.size > 24) adData.copyOf(24) else adData
         DiagLogger.ble("Legacy adv starting", "payload" to truncated.size.toString(),
             "dropped" to (adData.size - truncated.size).toString())
