@@ -35,7 +35,6 @@ class RezvanRadioService : Service() {
     @Volatile
     private var meshCorePtr: Long = 0
 
-    // Tick diagnostics
     private var tickCount = 0L
     private var lastSummaryTickAt = 0L
 
@@ -45,6 +44,9 @@ class RezvanRadioService : Service() {
 
     override fun onBind(intent: Intent?): IBinder = binder
     fun getMeshCorePtr(): Long = meshCorePtr
+
+    /** Expose the radio controller for diagnostics. */
+    fun getRadioController(): RadioController = radioController
 
     fun initializeMeshEngine(seed: ByteArray) {
         DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "initializeMeshEngine called")
@@ -76,7 +78,6 @@ class RezvanRadioService : Service() {
             actionDispatcher = ActionDispatcher(this)
             DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "Controllers built")
 
-            // Explicit permission check for all API levels
             val hasScanPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 ContextCompat.checkSelfPermission(
                     this, Manifest.permission.BLUETOOTH_SCAN
@@ -157,8 +158,6 @@ class RezvanRadioService : Service() {
         MeshServiceConnection.onPacketReceived(rawPacket, rssi)
     }
 
-    // ── Foreground notification ────────────────────────────────────────
-
     private fun startForegroundWithNotification() {
         createNotificationChannel()
         val pendingIntent = PendingIntent.getActivity(
@@ -195,8 +194,6 @@ class RezvanRadioService : Service() {
         }
     }
 
-    // ── WakeLock ────────────────────────────────────────────────────────
-
     private fun acquireWakeLock() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(
@@ -208,8 +205,6 @@ class RezvanRadioService : Service() {
     private fun releaseWakeLock() {
         if (::wakeLock.isInitialized && wakeLock.isHeld) wakeLock.release()
     }
-
-    // ── Periodic tick with diagnostics (Patch F) ────────────────────────
 
     private fun startPeriodicTick() {
         DiagLogger.log(this, "TICK", DiagLogger.Level.INFO,
@@ -268,8 +263,6 @@ class RezvanRadioService : Service() {
             }
         })
     }
-
-    // ── Battery ─────────────────────────────────────────────────────────
 
     private fun updateBatteryInfo() {
         val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
