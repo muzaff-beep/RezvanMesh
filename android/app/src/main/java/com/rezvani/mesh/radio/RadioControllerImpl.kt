@@ -59,9 +59,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val radioService: RezvanRadioService? =
         if (context is RezvanRadioService) context else null
 
-    fun setOwnNodeId(nodeId: ByteArray) {
-        ownNodeId = nodeId
-    }
+    fun setOwnNodeId(nodeId: ByteArray) { ownNodeId = nodeId }
 
     init {
         if (wifiP2pManager != null) {
@@ -99,14 +97,10 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            // Extract manufacturer data from the scan record
             val scanRecord = result.scanRecord ?: return
             val manufacturerData = scanRecord.getManufacturerSpecificData(MANUFACTURER_ID) ?: return
             if (manufacturerData.size < 2) return
-
-            // Check for Rezvan protocol marker 0x52 0x56
             if (manufacturerData[0] != 0x52.toByte() || manufacturerData[1] != 0x56.toByte()) return
-
             radioService?.onPacketReceived(manufacturerData, result.rssi)
         }
 
@@ -125,9 +119,9 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         if (bluetoothAdapter?.isEnabled != true) return
         if (isAdvertising) stopBleAdvertising()
 
-        // BLE manufacturer data can hold at most 29 bytes of payload
-        // (2 bytes reserved for manufacturer ID, total 31 bytes)
-        val truncatedPayload = if (adData.size > 29) adData.copyOf(29) else adData
+        // Manufacturer data AD structure overhead: 1(length) + 1(type) + 2(manufacturer ID) = 4 bytes
+        // Maximum payload we can embed = 31 (max advertisement) - 4 = 27 bytes
+        val truncatedPayload = if (adData.size > 27) adData.copyOf(27) else adData
 
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -163,8 +157,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    override fun connectToPeer(peerMacAddress: String): Boolean { return true }
-    override fun sendBlePacket(peerMacAddress: String, data: ByteArray): Boolean { return false }
+    override fun connectToPeer(peerMacAddress: String): Boolean = true
+    override fun sendBlePacket(peerMacAddress: String, data: ByteArray): Boolean = false
     override fun disconnectPeer(peerMacAddress: String) {}
 
     private val gattCallback = object : BluetoothGattCallback() {}
