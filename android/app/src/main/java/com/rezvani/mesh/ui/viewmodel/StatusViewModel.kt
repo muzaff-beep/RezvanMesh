@@ -25,13 +25,15 @@ class StatusViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
+            // Convert the entries flow to a list of formatted strings
+            val logFlow = DiagLogger.entries.map { list -> list.map { it.formatted() } }
+                .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
             combine(
                 MeshServiceConnection.nodeCount,
                 MeshServiceConnection.signalStrength,
                 MeshServiceConnection.isServiceConnected,
-                DiagLogger.entries
-                    .map { entries -> entries.map { it.formatted() } }
-                    .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+                logFlow
             ) { count, strength, connected, logs ->
                 val active = connected && count > 0
                 StatusUiState(
