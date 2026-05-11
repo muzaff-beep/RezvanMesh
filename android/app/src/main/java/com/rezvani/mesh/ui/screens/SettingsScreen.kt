@@ -16,6 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.rezvani.mesh.R
 import com.rezvani.mesh.ui.components.ConfirmationDialog
 import com.rezvani.mesh.ui.components.PowerState
@@ -26,6 +27,7 @@ import com.rezvani.mesh.utils.LocaleHelper
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToDiagnostics: (() -> Unit)? = null,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -122,6 +124,18 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+            // ---- Diagnostics entry ----
+            SettingsSection(title = "Developer") {
+                SettingsItem(
+                    icon = Icons.Default.Build,
+                    title = "Diagnostics",
+                    subtitle = "Self‑test harness for mesh debugging",
+                    onClick = { onNavigateToDiagnostics?.invoke() }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
             SettingsSection(title = stringResource(R.string.storage)) {
                 SettingsItem(
                     icon = Icons.Default.Storage,
@@ -183,10 +197,7 @@ fun SettingsScreen(
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = uiState.currentLanguage == code,
-                                onClick = null
-                            )
+                            RadioButton(selected = uiState.currentLanguage == code, onClick = null)
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(text = name)
                         }
@@ -194,9 +205,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) {
-                    Text(stringResource(R.string.close))
-                }
+                TextButton(onClick = { showLanguageDialog = false }) { Text(stringResource(R.string.close)) }
             }
         )
     }
@@ -220,10 +229,7 @@ fun SettingsScreen(
                                     .padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                RadioButton(
-                                    selected = uiState.powerOverride == state,
-                                    onClick = null
-                                )
+                                RadioButton(selected = uiState.powerOverride == state, onClick = null)
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(text = when (state) {
@@ -257,18 +263,13 @@ fun SettingsScreen(
                         ) {
                             RadioButton(selected = false, onClick = null)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = stringResource(R.string.auto_adaptive),
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(text = stringResource(R.string.auto_adaptive), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showPowerDialog = false }) {
-                    Text(stringResource(R.string.close))
-                }
+                TextButton(onClick = { showPowerDialog = false }) { Text(stringResource(R.string.close)) }
             }
         )
     }
@@ -295,9 +296,7 @@ fun SettingsScreen(
             onDismissRequest = { showAboutDialog = false },
             title = { Text(stringResource(R.string.about_rezvan_mesh)) },
             text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.about_description))
                     Text(
                         text = stringResource(R.string.version_format, uiState.versionName),
@@ -311,9 +310,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text(stringResource(R.string.close))
-                }
+                TextButton(onClick = { showAboutDialog = false }) { Text(stringResource(R.string.close)) }
             }
         )
     }
@@ -334,19 +331,14 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showCrashInfoDialog = false }) {
-                    Text(stringResource(R.string.close))
-                }
+                TextButton(onClick = { showCrashInfoDialog = false }) { Text(stringResource(R.string.close)) }
             }
         )
     }
 }
 
 @Composable
-fun SettingsSection(
-    title: String,
-    content: @Composable () -> Unit
-) {
+fun SettingsSection(title: String, content: @Composable () -> Unit) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Text(
             text = title,
@@ -366,47 +358,18 @@ fun SettingsItem(
     onClick: (() -> Unit)? = null,
     tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
-    val modifier = if (onClick != null) {
-        Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-    } else {
-        Modifier.fillMaxWidth()
-    }
-
+    val modifier = if (onClick != null) Modifier.fillMaxWidth().clickable { onClick() } else Modifier.fillMaxWidth()
     Row(
         modifier = modifier.padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
-        )
+        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            subtitle?.let { Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
-        if (onClick != null) {
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        if (onClick != null) Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
