@@ -99,10 +99,15 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val bytes = result.scanRecord?.bytes ?: return
-            if (bytes.size >= 2 && bytes[0] == 0x52.toByte() && bytes[1] == 0x56.toByte()) {
-                radioService?.onPacketReceived(bytes, result.rssi)
-            }
+            // Extract manufacturer data from the scan record
+            val scanRecord = result.scanRecord ?: return
+            val manufacturerData = scanRecord.getManufacturerSpecificData(MANUFACTURER_ID) ?: return
+            if (manufacturerData.size < 2) return
+
+            // Check for Rezvan protocol marker 0x52 0x56
+            if (manufacturerData[0] != 0x52.toByte() || manufacturerData[1] != 0x56.toByte()) return
+
+            radioService?.onPacketReceived(manufacturerData, result.rssi)
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -120,6 +125,10 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         if (bluetoothAdapter?.isEnabled != true) return
         if (isAdvertising) stopBleAdvertising()
 
+        // BLE manufacturer data can hold at most 29 bytes of payload
+        // (2 bytes reserved for manufacturer ID, total 31 bytes)
+        val truncatedPayload = if (adData.size > 29) adData.copyOf(29) else adData
+
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
@@ -128,7 +137,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
         val data = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
-            .addManufacturerData(MANUFACTURER_ID, adData)
+            .addManufacturerData(MANUFACTURER_ID, truncatedPayload)
             .build()
 
         bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
