@@ -2,12 +2,9 @@ package com.rezvani.mesh
 
 import android.app.Activity
 import android.content.BroadcastReceiver
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Environment
-import android.provider.MediaStore
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.rezvani.mesh.radio.ActionDispatcher
@@ -17,14 +14,14 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.text.SimpleDateFormat
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 object MeshServiceConnection {
     private const val TAG = "MeshServiceConnection"
 
-    private var meshService: RezvanRadioService? = null
+    /** Exposed for StatusViewModel to poll radio counters. */
+    var activeService: RezvanRadioService? = null
+        private set
 
     private val _meshCorePtr = MutableStateFlow<Long?>(null)
     val meshCorePtr: StateFlow<Long?> = _meshCorePtr.asStateFlow()
@@ -41,7 +38,6 @@ object MeshServiceConnection {
     private val _isServiceConnected = MutableStateFlow(false)
     val isServiceConnected: StateFlow<Boolean> = _isServiceConnected.asStateFlow()
 
-    // Live mesh data – populated by raw packet reception
     private val seenNodes = ConcurrentHashMap<String, Int>()
     private val _nodeCount = MutableStateFlow(0)
     val nodeCount: StateFlow<Int> = _nodeCount.asStateFlow()
@@ -54,19 +50,14 @@ object MeshServiceConnection {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     fun onServiceConnected(service: RezvanRadioService) {
-        meshService = service
+        activeService = service
         val ptr = service.getMeshCorePtr()
         _meshCorePtr.value = ptr
         _isServiceConnected.value = true
-        Log.i(TAG, "Service connected, corePtr = $ptr")
-
-        if (ptr != null && ptr != 0L) {
-            startPowerStatePolling()
-        }
     }
 
     fun onServiceDisconnected() {
-        meshService = null
+        activeService = null
         _meshCorePtr.value = null
         _isServiceConnected.value = false
         serviceScope.cancel()
@@ -76,10 +67,6 @@ object MeshServiceConnection {
         PowerProfileManager.applyPowerState(activity, _powerState.value)
     }
 
-    /**
-     * Called by RezvanRadioService whenever a raw packet is received.
-     * Extracts the originator Node ID and RSSI to update live mesh metrics.
-     */
     fun onPacketReceived(packet: ByteArray, rssi: Int) {
         try {
             if (packet.size < 11) return
@@ -89,11 +76,7 @@ object MeshServiceConnection {
             _nodeCount.value = seenNodes.size
             val best = seenNodes.values.maxOrNull()?.let { "$it dBm" } ?: "-68 dBm"
             _signalStrength.value = best
-
-            writeDiag("MeshServiceConnection: node seen, total nodes=${seenNodes.size}")
-        } catch (_: Exception) {
-            // ignore malformed packets
-        }
+        } catch (_: Exception) { }
     }
 
     fun registerReceivers(context: Context) {
@@ -106,8 +89,7 @@ object MeshServiceConnection {
             }
         }
         LocalBroadcastManager.getInstance(context).registerReceiver(
-            messageReceiver!!,
-            IntentFilter(ActionDispatcher.ACTION_NEW_MESSAGE)
+            messageReceiver!!, IntentFilter(ActionDispatcher.ACTION_NEW_MESSAGE)
         )
 
         batteryReceiver = object : BroadcastReceiver() {
@@ -121,7 +103,7 @@ object MeshServiceConnection {
                     val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
                                    status == android.os.BatteryManager.BATTERY_STATUS_FULL
                     _isCharging.value = charging
-                    meshService?.let {
+                    activeService?.let {
                         val ptr = _meshCorePtr.value
                         if (ptr != null && ptr != 0L) {
                             MeshCore.nativeUpdateBattery(ptr, percent, charging)
@@ -130,19 +112,12 @@ object MeshServiceConnection {
                 }
             }
         }
-        context.registerReceiver(
-            batteryReceiver,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        )
+        context.registerReceiver(batteryReceiver!!, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
     }
 
     fun unregisterReceivers(context: Context) {
-        messageReceiver?.let {
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(it)
-        }
-        batteryReceiver?.let {
-            context.unregisterReceiver(it)
-        }
+        messageReceiver?.let { LocalBroadcastManager.getInstance(context).unregisterReceiver(it) }
+        batteryReceiver?.let { context.unregisterReceiver(it) }
     }
 
     suspend fun sendTextMessage(recipientId: ByteArray, text: String): Boolean {
@@ -189,9 +164,7 @@ object MeshServiceConnection {
         try {
             val message = parseDecryptedMessage(payload)
             Log.i(TAG, "Received message from ${message.senderId}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse decrypted message", e)
-        }
+        } catch (e: Exception) { }
     }
 
     private fun parseDecryptedMessage(data: ByteArray): DecryptedMessage {
@@ -202,13 +175,7 @@ object MeshServiceConnection {
         val messageType = (buffer.get().toInt() and 0xFF)
         val contentLen = buffer.int
         val content = ByteArray(contentLen); buffer.get(content)
-        return DecryptedMessage(
-            conversationId = conversationId,
-            senderId = senderId,
-            timestamp = timestamp,
-            messageType = messageType,
-            content = content
-        )
+        return DecryptedMessage(conversationId, senderId, timestamp, messageType, content)
     }
 
     data class DecryptedMessage(
@@ -240,27 +207,5 @@ object MeshServiceConnection {
             result = 31 * result + content.contentHashCode()
             return result
         }
-    }
-
-    // ---- tiny diagnostic file writer (public Downloads folder) ----
-
-    private fun writeDiag(msg: String) {
-        try {
-            val ctx = meshService ?: return
-            val ts = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
-            val line = "$ts  $msg\n"
-            val filename = "diag.txt"
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            }
-            val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            uri?.let {
-                ctx.contentResolver.openOutputStream(it, "wa")?.use { os ->
-                    os.write(line.toByteArray())
-                }
-            }
-        } catch (_: Exception) { }
     }
 }
