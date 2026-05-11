@@ -35,59 +35,79 @@ class RezvanRadioService : Service() {
     @Volatile
     private var meshCorePtr: Long = 0
 
+    // Tick diagnostics
+    private var tickCount = 0L
+    private var lastSummaryTickAt = 0L
+
     inner class LocalBinder : Binder() {
         fun getService(): RezvanRadioService = this@RezvanRadioService
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
-
     fun getMeshCorePtr(): Long = meshCorePtr
 
     fun initializeMeshEngine(seed: ByteArray) {
-        DiagLogger.log(this, "initializeMeshEngine called")
+        DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "initializeMeshEngine called")
         if (meshCorePtr != 0L) {
-            Log.w(TAG, "Mesh engine already initialised")
-            DiagLogger.log(this, "Engine already initialised, ptr=$meshCorePtr")
+            DiagLogger.log(this, "SERVICE", DiagLogger.Level.WARN, "Engine already initialised")
             return
         }
         try {
             val storagePath = filesDir.absolutePath
             meshCorePtr = MeshCore.nativeInit(seed, storagePath)
-            DiagLogger.log(this, "MeshCore initialised, ptr=$meshCorePtr")
+            DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "MeshCore initialised, ptr=$meshCorePtr")
             startPeriodicTick()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize mesh engine", e)
-            DiagLogger.log(this, "nativeInit failed: ${e.message}")
+            DiagLogger.err(this, "SERVICE", "nativeInit failed: ${e.message}", e)
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "onCreate START")
         try {
-            Log.i(TAG, "RezvanRadioService onCreate")
             startForegroundWithNotification()
+            DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "Foreground notification posted")
+
             acquireWakeLock()
+            DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "WakeLock acquired")
+
             radioController = RadioControllerImpl(this)
             actionDispatcher = ActionDispatcher(this)
+            DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "Controllers built")
 
-            var scanStarted = false
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ContextCompat.checkSelfPermission(
-                        this, Manifest.permission.BLUETOOTH_SCAN
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    radioController.startBleScan(5000L, 250L)
-                    scanStarted = true
-                }
+            // Explicit permission check for all API levels
+            val hasScanPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.BLUETOOTH_SCAN
+                ) == PackageManager.PERMISSION_GRANTED
             } else {
-                radioController.startBleScan(5000L, 250L)
-                scanStarted = true
+                ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
             }
-            DiagLogger.log(this, "BLE scan " + if (scanStarted) "started" else "skipped - no permission")
-        } catch (e: Exception) {
-            Log.e(TAG, "FATAL in RezvanRadioService.onCreate", e)
-            DiagLogger.log(this, "Service onCreate failed: ${e.message}")
-            throw e
+
+            val hasAdvPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.BLUETOOTH_ADVERTISE
+                ) == PackageManager.PERMISSION_GRANTED
+            } else true
+
+            DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO,
+                "Permissions: scan=$hasScanPerm adv=$hasAdvPerm sdk=${Build.VERSION.SDK_INT}")
+
+            if (hasScanPerm) {
+                radioController.startBleScan(5000L, 250L)
+                DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "BLE scan requested")
+            } else {
+                DiagLogger.err(this, "SERVICE",
+                    "BLE scan SKIPPED: no permission. App will be deaf to peers.")
+            }
+
+            DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "onCreate COMPLETE")
+        } catch (t: Throwable) {
+            DiagLogger.err(this, "SERVICE", "FATAL in onCreate", t)
+            throw t
         }
     }
 
@@ -98,52 +118,53 @@ class RezvanRadioService : Service() {
             try {
                 val seed = IdentityBackupHelper.loadSeed(this)
                 if (seed != null) {
-                    DiagLogger.log(this, "Service seed bytes: ${seed.size}")
-                    DiagLogger.log(this, "Seed found, calling initializeMeshEngine")
+                    DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO,
+                        "Service seed bytes: ${seed.size}")
+                    DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO,
+                        "Seed found, calling initializeMeshEngine")
                     initializeMeshEngine(seed)
                 } else {
-                    DiagLogger.log(this, "No identity seed yet – waiting for onboarding")
+                    DiagLogger.log(this, "SERVICE", DiagLogger.Level.WARN,
+                        "No identity seed yet – waiting for onboarding")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to start command", e)
-                DiagLogger.log(this, "onStartCommand error: ${e.message}")
+                DiagLogger.err(this, "SERVICE", "onStartCommand error", e)
             }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
-        Log.i(TAG, "RezvanRadioService onDestroy")
+        DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO, "onDestroy")
         isRunning.set(false)
         tickHandler.removeCallbacksAndMessages(null)
         if (meshCorePtr != 0L) {
             MeshCore.nativeDestroy(meshCorePtr)
             meshCorePtr = 0
         }
-        radioController.onDestroy()
+        if (::radioController.isInitialized) radioController.onDestroy()
         releaseWakeLock()
         super.onDestroy()
     }
 
     fun onPacketReceived(rawPacket: ByteArray, rssi: Int) {
-        DiagLogger.log(this, "Packet received, RSSI=$rssi, len=${rawPacket.size}")
+        DiagLogger.log(this, "MAIN", DiagLogger.Level.INFO,
+            "Packet received, RSSI=$rssi, len=${rawPacket.size}")
         if (meshCorePtr == 0L) return
         val timestampUs = System.currentTimeMillis() * 1000
         val result = MeshCore.nativeProcessIncoming(meshCorePtr, rawPacket, rssi, timestampUs)
         result?.let { actionDispatcher.dispatch(it, radioController) }
-
         MeshServiceConnection.onPacketReceived(rawPacket, rssi)
     }
 
+    // ── Foreground notification ────────────────────────────────────────
+
     private fun startForegroundWithNotification() {
         createNotificationChannel()
-
         val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
+            this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.mesh_service_title))
             .setContentText(getString(R.string.mesh_service_running))
@@ -152,7 +173,6 @@ class RezvanRadioService : Service() {
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
@@ -164,8 +184,7 @@ class RezvanRadioService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.mesh_channel_name),
+                CHANNEL_ID, getString(R.string.mesh_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = getString(R.string.mesh_channel_description)
@@ -176,46 +195,81 @@ class RezvanRadioService : Service() {
         }
     }
 
+    // ── WakeLock ────────────────────────────────────────────────────────
+
     private fun acquireWakeLock() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            "RezvanMesh::RadioWakeLock"
+            PowerManager.PARTIAL_WAKE_LOCK, "RezvanMesh::RadioWakeLock"
         )
         wakeLock.acquire(24 * 60 * 60 * 1000)
     }
 
     private fun releaseWakeLock() {
-        if (::wakeLock.isInitialized && wakeLock.isHeld) {
-            wakeLock.release()
-        }
+        if (::wakeLock.isInitialized && wakeLock.isHeld) wakeLock.release()
     }
 
+    // ── Periodic tick with diagnostics (Patch F) ────────────────────────
+
     private fun startPeriodicTick() {
+        DiagLogger.log(this, "TICK", DiagLogger.Level.INFO,
+            "Periodic tick loop started, interval=${TICK_INTERVAL_MS}ms")
         tickHandler.post(object : Runnable {
             override fun run() {
-                if (!isRunning.get()) {
-                    DiagLogger.log(this@RezvanRadioService, "Tick skipped - service not running")
-                    return
-                }
+                if (!isRunning.get()) return
+                tickCount++
+
                 if (meshCorePtr == 0L) {
-                    DiagLogger.log(this@RezvanRadioService, "Tick skipped - meshCorePtr is 0")
+                    if (tickCount % 30L == 0L) {
+                        DiagLogger.log(this@RezvanRadioService, "TICK",
+                            DiagLogger.Level.WARN,
+                            "Tick #$tickCount: meshCorePtr=0, engine not initialized")
+                    }
                     tickHandler.postDelayed(this, TICK_INTERVAL_MS)
                     return
                 }
-                try {
-                    val actions = MeshCore.nativeTick(meshCorePtr)
-                    DiagLogger.log(this@RezvanRadioService, "Tick: ${actions?.size ?: 0} actions")
-                    actions?.let { actionDispatcher.dispatch(it, radioController) }
-                    updateBatteryInfo()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in periodic tick", e)
-                    DiagLogger.log(this@RezvanRadioService, "Tick error: ${e.message}")
+
+                val timestampUs = System.currentTimeMillis() * 1000
+                val actions = try {
+                    MeshCore.nativeTick(meshCorePtr)
+                } catch (t: Throwable) {
+                    DiagLogger.err(this@RezvanRadioService, "TICK",
+                        "nativeTick threw at #$tickCount", t)
+                    null
                 }
+
+                actions?.let { list ->
+                    if (list.isNotEmpty()) {
+                        val histogram = list.groupingBy { it::class.simpleName ?: "Unknown" }
+                            .eachCount()
+                        DiagLogger.log(this@RezvanRadioService, "TICK",
+                            DiagLogger.Level.INFO,
+                            "Tick #$tickCount: ${list.size} actions $histogram")
+                    }
+                    actionDispatcher.dispatch(list, radioController)
+                }
+
+                // Heartbeat every ~30 seconds
+                if (tickCount - lastSummaryTickAt >= 30L) {
+                    lastSummaryTickAt = tickCount
+                    val isAdv = try {
+                        (radioController as? RadioControllerImpl)?.isCurrentlyAdvertising() ?: false
+                    } catch (_: Exception) { false }
+                    val isScan = try {
+                        (radioController as? RadioControllerImpl)?.isCurrentlyScanning() ?: false
+                    } catch (_: Exception) { false }
+                    DiagLogger.log(this@RezvanRadioService, "TICK",
+                        DiagLogger.Level.INFO,
+                        "HEARTBEAT tick=$tickCount adv=$isAdv scan=$isScan " +
+                        "uptime=${(tickCount * TICK_INTERVAL_MS) / 1000}s")
+                }
+
                 tickHandler.postDelayed(this, TICK_INTERVAL_MS)
             }
         })
     }
+
+    // ── Battery ─────────────────────────────────────────────────────────
 
     private fun updateBatteryInfo() {
         val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
