@@ -46,7 +46,6 @@ fun StatusScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showErrorsOnly by remember { mutableStateOf(false) }
 
-    // Apply filters
     val filteredLogs = remember(uiState.logLines, activeTag, searchQuery, showErrorsOnly) {
         uiState.logLines.filter { line ->
             val tagOk = activeTag == null || line.contains("[${activeTag}/")
@@ -133,6 +132,22 @@ fun StatusScreen(
         ) {
             LiveDataCard(Modifier.weight(1f), uiState.nodeCount.toString(), "Nodes Seen", Color(0xFF4CAF50))
             LiveDataCard(Modifier.weight(1f), uiState.signalStrength, "Best RSSI", Color(0xFFFF9800))
+        }
+
+        // Radio status row
+        val radio = uiState.radioSnapshot
+        if (radio.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Radio", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Text("Scan: ${if (radio["scanning"] == 1L) "✅" else "❌"}", style = MaterialTheme.typography.bodySmall)
+                Text("Adv: ${if (radio["advertising"] == 1L) "✅" else "❌"}", style = MaterialTheme.typography.bodySmall)
+                Text("RX:${radio["rx_total"]} (L:${radio["rx_loopback"]} P:${radio["rx_peer"]})", style = MaterialTheme.typography.bodySmall)
+                Text("TX:${radio["tx_starts"]}", style = MaterialTheme.typography.bodySmall)
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
