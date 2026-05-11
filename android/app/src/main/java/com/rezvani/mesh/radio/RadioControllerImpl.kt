@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
+import android.util.SparseArray
 import com.rezvani.mesh.BuildConfig
 import com.rezvani.mesh.utils.DiagLogger
 import java.io.DataInputStream
@@ -160,15 +161,19 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
             val scanRecord = result.scanRecord ?: return
 
+            // Log raw manufacturer data for the first few advertisements
             if (rawLogLimit.get() > 0) {
-                val mfrIds = mutableListOf<Int>()
-                scanRecord.getManufacturerSpecificData()?.let { data ->
-                    for (key in data.keys) mfrIds.add(key)
+                val mfrData = scanRecord.getManufacturerSpecificData()
+                val ids = mutableListOf<Int>()
+                if (mfrData != null) {
+                    for (i in 0 until mfrData.size()) {
+                        ids.add(mfrData.keyAt(i))
+                    }
                 }
-                if (mfrIds.isNotEmpty()) {
-                    DiagLogger.ble("raw_scan", "addr" to result.device.address.takeLast(5),
-                        "rssi" to result.rssi.toString(), "mfr_ids" to mfrIds.joinToString(","))
-                }
+                DiagLogger.ble("raw_scan",
+                    "addr" to result.device.address.takeLast(5),
+                    "rssi" to result.rssi.toString(),
+                    "mfr_ids" to ids.joinToString(","))
                 rawLogLimit.decrementAndGet()
             }
 
@@ -189,14 +194,18 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             if (isSelf) {
                 rxLoopback.incrementAndGet()
                 if (BuildConfig.DEBUG_LOOPBACK) {
-                    DiagLogger.ble("LOOPBACK rx", "rssi" to result.rssi.toString(), "size" to manufacturerData.size.toString())
+                    DiagLogger.ble("LOOPBACK rx",
+                        "rssi" to result.rssi.toString(),
+                        "size" to manufacturerData.size.toString())
                     radioService?.onPacketReceived(manufacturerData, result.rssi)
                 }
                 return
             }
 
             rxPeer.incrementAndGet()
-            DiagLogger.ble("BLE rx peer", "rssi" to result.rssi.toString(), "size" to manufacturerData.size.toString())
+            DiagLogger.ble("BLE rx peer",
+                "rssi" to result.rssi.toString(),
+                "size" to manufacturerData.size.toString())
             cachedRssiMap[result.device.address] = result.rssi
             radioService?.onPacketReceived(manufacturerData, result.rssi)
         }
@@ -244,7 +253,9 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             .addManufacturerData(MANUFACTURER_ID, payload)
             .build()
 
-        DiagLogger.ble("Extended adv starting", "payload" to payload.size.toString(), "max" to maxLen.toString())
+        DiagLogger.ble("Extended adv starting",
+            "payload" to payload.size.toString(),
+            "max" to maxLen.toString())
 
         try {
             bleAdvertiser?.startAdvertisingSet(params, data, null, null, null, extendedCallback)
@@ -275,7 +286,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private fun startLegacyAdvertising(adData: ByteArray) {
         val truncated = if (adData.size > 24) adData.copyOf(24) else adData
-        DiagLogger.ble("Legacy adv starting", "payload" to truncated.size.toString(),
+        DiagLogger.ble("Legacy adv starting",
+            "payload" to truncated.size.toString(),
             "dropped" to (adData.size - truncated.size).toString())
 
         val settings = AdvertiseSettings.Builder()
