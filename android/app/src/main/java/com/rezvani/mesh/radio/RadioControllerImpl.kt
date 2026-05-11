@@ -53,7 +53,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val rxScanAll = AtomicLong(0)
     private val txStarts = AtomicLong(0)
 
-    // Limit raw diagnostic spam to the first few results
     private val rawLogLimit = AtomicLong(5)
 
     private val heartbeatHandler = Handler(Looper.getMainLooper())
@@ -120,8 +119,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         startHeartbeat()
     }
 
-    // ── BLE Scanning (extended‑advertisement‑compatible) ───────────────
-
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleScan ABORT: BT disabled or null adapter")
@@ -138,7 +135,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            settingsBuilder.setLegacy(false)                 // accept extended advertisements
+            settingsBuilder.setLegacy(false)
             settingsBuilder.setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
         }
         val settings = settingsBuilder.build()
@@ -163,11 +160,10 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
             val scanRecord = result.scanRecord ?: return
 
-            // Log raw manufacturer data for first few results
             if (rawLogLimit.get() > 0) {
                 val mfrIds = mutableListOf<Int>()
                 scanRecord.getManufacturerSpecificData()?.let { data ->
-                    for (key in data.keySet()) mfrIds.add(key)
+                    for (key in data.keys) mfrIds.add(key)
                 }
                 if (mfrIds.isNotEmpty()) {
                     DiagLogger.ble("raw_scan", "addr" to result.device.address.takeLast(5),
@@ -209,8 +205,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             DiagLogger.ble("BLE scan FAILED", "code" to errorCode.toString())
         }
     }
-
-    // ── BLE Advertising ─────────────────────────────────────────────────
 
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) {
