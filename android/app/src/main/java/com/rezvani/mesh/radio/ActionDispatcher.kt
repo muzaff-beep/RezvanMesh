@@ -56,6 +56,7 @@ class ActionDispatcher(private val context: Context) {
                     TYPE_BLE_PACKET -> handleBlePacket(payload, radio)
                     TYPE_UPDATE_SCAN -> handleUpdateScan(payload, radio)
                     TYPE_NOTIFY_UI -> handleNotifyUi(payload)
+                    TYPE_DIAG_LOG -> handleDiagLog(payload)
                     else -> Log.w(TAG, "Unknown action type: $type")
                 }
             } catch (e: Exception) {
@@ -134,6 +135,32 @@ class ActionDispatcher(private val context: Context) {
         Log.d(TAG, "Broadcasted new message to UI")
     }
 
+    private fun handleDiagLog(payload: ByteArray) {
+        try {
+            val buf = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN)
+            if (buf.remaining() < 1) return
+            val levelByte = buf.get().toInt() and 0xFF
+            if (buf.remaining() < 2) return
+            val tagLen = buf.short.toInt() and 0xFFFF
+            if (buf.remaining() < tagLen) return
+            val tag = ByteArray(tagLen).also { buf.get(it) }.toString(Charsets.UTF_8)
+            if (buf.remaining() < 2) return
+            val msgLen = buf.short.toInt() and 0xFFFF
+            if (buf.remaining() < msgLen) return
+            val message = ByteArray(msgLen).also { buf.get(it) }.toString(Charsets.UTF_8)
+
+            val level = when (levelByte) {
+                0 -> DiagLogger.Level.VERBOSE
+                1 -> DiagLogger.Level.INFO
+                2 -> DiagLogger.Level.WARN
+                else -> DiagLogger.Level.ERROR
+            }
+            DiagLogger.log(context, tag, level, message)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to handle DiagLog", e)
+        }
+    }
+
     companion object {
         private const val TAG = "ActionDispatcher"
 
@@ -142,6 +169,7 @@ class ActionDispatcher(private val context: Context) {
         const val TYPE_BLE_PACKET: Int = 0x03
         const val TYPE_UPDATE_SCAN: Int = 0x04
         const val TYPE_NOTIFY_UI: Int = 0x05
+        const val TYPE_DIAG_LOG: Int = 0x06
 
         const val ACTION_NEW_MESSAGE = "com.rezvani.mesh.NEW_MESSAGE"
         const val EXTRA_DECRYPTED_MESSAGE = "decrypted_message"
