@@ -38,7 +38,6 @@ impl MeshEngine {
             node_id,
         };
 
-        // Replace the dummy session manager with the real one
         engine.sessions = SessionManager::new(engine.crypto.clone_box(), engine.sessions.identity());
         engine
     }
@@ -54,18 +53,49 @@ impl MeshEngine {
 
     pub fn process_incoming(
         &mut self,
-        packet: &[u8],
+        raw_packet: &[u8],
         rssi: i32,
         timestamp: u64,
     ) -> (Option<DecryptedMessage>, Vec<Action>) {
-        if packet.len() < 12 {
-            return (None, Vec::new());
-        }
+        // Strip BLE magic prefix if present (0x52, 0x56)
+        let packet = if raw_packet.len() >= 2
+            && raw_packet[0] == 0x52
+            && raw_packet[1] == 0x56
+        {
+            &raw_packet[2..]
+        } else {
+            raw_packet
+        };
 
         let header = match rezvan_common::MeshPacketHeader::deserialize(packet) {
             Some(h) => h,
-            None => return (None, Vec::new()),
+            None => {
+                let diag = Action::DiagLog {
+                    tag: "RUST".into(),
+                    level: 3,
+                    message: format!(
+                        "deserialize FAILED len={} prefix={:02x}{:02x}",
+                        packet.len(),
+                        packet.get(0).copied().unwrap_or(0),
+                        packet.get(1).copied().unwrap_or(0)
+                    ),
+                };
+                return (None, vec![diag]);
+            }
         };
+
+        // Self‑loop detection
+        if header.originator == self.node_id {
+            let diag = Action::DiagLog {
+                tag: "RUST".into(),
+                level: 1,
+                message: format!(
+                    "LOOPBACK ok seq={} type={:#04x} rssi={}",
+                    header.sequence, header.packet_type, rssi
+                ),
+            };
+            return (None, vec![diag]);
+        }
 
         match header.packet_type {
             0x01 => {
@@ -153,4 +183,4 @@ impl MeshEngine {
         adv[12..14].copy_from_slice(&seq);
         adv
     }
-                        }
+}
