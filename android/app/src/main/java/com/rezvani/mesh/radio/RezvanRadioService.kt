@@ -233,15 +233,13 @@ class RezvanRadioService : Service() {
                     null
                 }
 
-                actions?.let { list ->
-                    if (list.isNotEmpty()) {
-                        val histogram = list.groupingBy { it::class.simpleName ?: "Unknown" }
-                            .eachCount()
+                actions?.let { actionBytes ->
+                    if (actionBytes.isNotEmpty()) {
                         DiagLogger.log(this@RezvanRadioService, "TICK",
                             DiagLogger.Level.INFO,
-                            "Tick #$tickCount: ${list.size} actions $histogram")
+                            "Tick #$tickCount: ${actionBytes.size} bytes dispatched")
                     }
-                    actionDispatcher.dispatch(list, radioController)
+                    actionDispatcher.dispatch(actionBytes, radioController)
                 }
 
                 // Heartbeat every ~30 seconds
