@@ -44,8 +44,6 @@ class RezvanRadioService : Service() {
 
     override fun onBind(intent: Intent?): IBinder = binder
     fun getMeshCorePtr(): Long = meshCorePtr
-
-    /** Expose the radio controller for diagnostics. */
     fun getRadioController(): RadioController = radioController
 
     fun initializeMeshEngine(seed: ByteArray) {
@@ -123,6 +121,15 @@ class RezvanRadioService : Service() {
                         "Service seed bytes: ${seed.size}")
                     DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO,
                         "Seed found, calling initializeMeshEngine")
+
+                    // Set own node ID for loopback detection
+                    val ownNodeId = IdentityBackupHelper.loadNodeIdBytes(this)
+                    if (ownNodeId != null) {
+                        (radioController as? RadioControllerImpl)?.setOwnNodeId(ownNodeId)
+                        DiagLogger.log(this, "SERVICE", DiagLogger.Level.INFO,
+                            "ownNodeId set for loopback: ${ownNodeId.take(4).joinToString("") { "%02x".format(it) }}...")
+                    }
+
                     initializeMeshEngine(seed)
                 } else {
                     DiagLogger.log(this, "SERVICE", DiagLogger.Level.WARN,
