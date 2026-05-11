@@ -40,19 +40,17 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val cachedRssiMap = ConcurrentHashMap<String, Int>()
 
     private val isScanning = AtomicBoolean(false)
-    private var scanIntervalMs = 0L
-    private var scanWindowMs = 0L
     private val scanHandler = Handler(Looper.getMainLooper())
 
     private val isAdvertising = AtomicBoolean(false)
     private var advertisingSet: AdvertisingSet? = null
 
     private var ownNodeId: ByteArray? = null
-    private var ownBleAddress: String? = null
 
     private val rxTotal = AtomicLong(0)
     private val rxLoopback = AtomicLong(0)
     private val rxPeer = AtomicLong(0)
+    private val rxScanAll = AtomicLong(0)      // all scan results received
     private val txStarts = AtomicLong(0)
 
     private val heartbeatHandler = Handler(Looper.getMainLooper())
@@ -65,6 +63,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                 "rx" to rxTotal.get().toString(),
                 "self" to rxLoopback.get().toString(),
                 "peer" to rxPeer.get().toString(),
+                "all" to rxScanAll.get().toString(),
                 "tx" to txStarts.get().toString()
             )
             heartbeatHandler.postDelayed(this, 10_000L)
@@ -118,6 +117,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         startHeartbeat()
     }
 
+    // ── BLE Scanning (continuous, no hardware filter) ────────────────────
+
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleScan ABORT: BT disabled or null adapter")
@@ -127,46 +128,16 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             DiagLogger.ble("startBleScan ABORT: scanner is null")
             return
         }
-        scanIntervalMs = intervalMs
-        scanWindowMs = windowMs
-        if (isScanning.get()) stopBleScan()
+        if (isScanning.get()) return
         isScanning.set(true)
-        DiagLogger.ble("BLE scan starting", "interval" to intervalMs.toString(), "window" to windowMs.toString(),
-            "continuous" to (windowMs >= intervalMs).toString())
-        scheduleScanCycle()
-    }
 
-    private fun scheduleScanCycle() {
-        if (!isScanning.get()) return
-
-        val scanSettingsBuilder = ScanSettings.Builder()
+        val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-            .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
-            .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            scanSettingsBuilder.setLegacy(false)
-            scanSettingsBuilder.setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
-        }
-        val settings = scanSettingsBuilder.build()
-
-        val scanFilter = ScanFilter.Builder()
-            .setManufacturerData(MANUFACTURER_ID, byteArrayOf(MAGIC_BYTE_0, MAGIC_BYTE_1))
+            .setReportDelay(0)
             .build()
 
-        try {
-            bleScanner?.startScan(listOf(scanFilter), settings, scanCallback)
-        } catch (t: Throwable) {
-            DiagLogger.ble("startScan threw: ${t.message}")
-        }
-
-        scanHandler.postDelayed({
-            try { bleScanner?.stopScan(scanCallback) } catch (t: Throwable) {
-                DiagLogger.ble("stopBleScan threw: ${t.message}")
-            }
-            scanHandler.postDelayed({ scheduleScanCycle() },
-                (scanIntervalMs - scanWindowMs).coerceAtLeast(0))
-        }, scanWindowMs)
+        DiagLogger.ble("BLE scan starting – continuous")
+        bleScanner?.startScan(null, settings, scanCallback)
     }
 
     override fun stopBleScan() {
@@ -181,6 +152,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
+            rxScanAll.incrementAndGet()
+
             val scanRecord = result.scanRecord ?: return
             val manufacturerData = scanRecord.getManufacturerSpecificData(MANUFACTURER_ID) ?: return
             if (manufacturerData.size < NODE_ID_OFFSET + NODE_ID_LEN) return
@@ -188,6 +161,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
             rxTotal.incrementAndGet()
 
+            // Self‑detection by node ID
             val isSelf = ownNodeId?.let { own ->
                 var match = true
                 for (i in 0 until NODE_ID_LEN) {
@@ -216,6 +190,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
+    // ── BLE Advertising ─────────────────────────────────────────────────
+
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleAdvertising ABORT: BT disabled")
@@ -225,11 +201,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             DiagLogger.ble("startBleAdvertising ABORT: advertiser is null")
             return
         }
-
-        // If already advertising, don't restart — prevents BLE stack overload
-        if (isAdvertising.get()) {
-            return
-        }
+        if (isAdvertising.get()) return
 
         if (bluetoothAdapter?.isLeExtendedAdvertisingSupported == true) {
             startExtendedAdvertising(adData)
@@ -323,7 +295,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             DiagLogger.ble("stopAdvertising threw: ${t.message}")
         }
         isAdvertising.set(false)
-        DiagLogger.ble("BLE advertising stopped")
     }
 
     private val legacyAdvertiseCallback = object : AdvertiseCallback() {
