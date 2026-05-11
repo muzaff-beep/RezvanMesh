@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rezvani.mesh.MeshCore
 import com.rezvani.mesh.MeshServiceConnection
+import com.rezvani.mesh.radio.RadioControllerImpl
 import com.rezvani.mesh.utils.DiagLogger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class StatusUiState(
@@ -13,7 +16,8 @@ data class StatusUiState(
     val statusDetail: String = "No peers detected · Seeking devices...",
     val signalStrength: String = "-68 dBm",
     val nodeCount: Int = 0,
-    val logLines: List<String> = emptyList()
+    val logLines: List<String> = emptyList(),
+    val radioSnapshot: Map<String, Long> = emptyMap()
 )
 
 class StatusViewModel : ViewModel() {
@@ -21,11 +25,12 @@ class StatusViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(StatusUiState())
     val uiState: StateFlow<StatusUiState> = _uiState.asStateFlow()
 
+    private val _radioState = MutableStateFlow<Map<String, Long>>(emptyMap())
+
     private var mockCounter = 0
 
     init {
         viewModelScope.launch {
-            // Convert the entries flow to a list of formatted strings
             val logFlow = DiagLogger.entries.map { list -> list.map { it.formatted() } }
                 .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -33,8 +38,9 @@ class StatusViewModel : ViewModel() {
                 MeshServiceConnection.nodeCount,
                 MeshServiceConnection.signalStrength,
                 MeshServiceConnection.isServiceConnected,
-                logFlow
-            ) { count, strength, connected, logs ->
+                logFlow,
+                _radioState
+            ) { count, strength, connected, logs, radio ->
                 val active = connected && count > 0
                 StatusUiState(
                     active = active,
@@ -47,9 +53,24 @@ class StatusViewModel : ViewModel() {
                     },
                     signalStrength = strength,
                     nodeCount = count,
-                    logLines = logs
+                    logLines = logs,
+                    radioSnapshot = radio
                 )
             }.collect { _uiState.value = it }
+        }
+
+        // Poll radio counters every 2 seconds
+        viewModelScope.launch {
+            while (isActive) {
+                delay(2000)
+                try {
+                    val ctrl = MeshServiceConnection.activeService
+                        ?.getRadioController() as? RadioControllerImpl
+                    if (ctrl != null) {
+                        _radioState.value = ctrl.snapshotCounters()
+                    }
+                } catch (_: Exception) { }
+            }
         }
     }
 
