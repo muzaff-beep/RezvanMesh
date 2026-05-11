@@ -50,13 +50,11 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private var ownNodeId: ByteArray? = null
     private var ownBleAddress: String? = null
 
-    // Radio counters
     private val rxTotal = AtomicLong(0)
     private val rxLoopback = AtomicLong(0)
     private val rxPeer = AtomicLong(0)
     private val txStarts = AtomicLong(0)
 
-    // Heartbeat
     private val heartbeatHandler = Handler(Looper.getMainLooper())
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
@@ -73,7 +71,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // WiFi Direct
     private val wifiP2pManager: WifiP2pManager? =
         context.getSystemService(Context.WIFI_P2P_SERVICE) as? WifiP2pManager
     private var wifiP2pChannel: WifiP2pManager.Channel? = null
@@ -88,7 +85,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     fun setOwnNodeId(nodeId: ByteArray) {
         if (nodeId.size != NODE_ID_LEN) {
-            DiagLogger.err("BLE", "setOwnNodeId WRONG LENGTH: got ${nodeId.size}, expected $NODE_ID_LEN")
+            DiagLogger.ble("setOwnNodeId WRONG LENGTH: got ${nodeId.size}, expected $NODE_ID_LEN")
             return
         }
         ownNodeId = nodeId.copyOf()
@@ -120,8 +117,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
         startHeartbeat()
     }
-
-    // ── BLE Scanning ────────────────────────────────────────────────────
 
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
@@ -162,11 +157,13 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         try {
             bleScanner?.startScan(listOf(scanFilter), settings, scanCallback)
         } catch (t: Throwable) {
-            DiagLogger.err(context, "BLE", "startScan threw: ${t.message}", t)
+            DiagLogger.ble("startScan threw: ${t.message}")
         }
 
         scanHandler.postDelayed({
-            try { bleScanner?.stopScan(scanCallback) } catch (_: Throwable) {}
+            try { bleScanner?.stopScan(scanCallback) } catch (t: Throwable) {
+                DiagLogger.ble("stopBleScan threw: ${t.message}")
+            }
             scanHandler.postDelayed({ scheduleScanCycle() },
                 (scanIntervalMs - scanWindowMs).coerceAtLeast(0))
         }, scanWindowMs)
@@ -176,7 +173,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         if (!isScanning.get()) return
         isScanning.set(false)
         try { bleScanner?.stopScan(scanCallback) } catch (t: Throwable) {
-            DiagLogger.err(null, "BLE", "stopBleScan threw: ${t.message}")
+            DiagLogger.ble("stopBleScan threw: ${t.message}")
         }
         scanHandler.removeCallbacksAndMessages(null)
         DiagLogger.ble("BLE scan stopped")
@@ -191,7 +188,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
             rxTotal.incrementAndGet()
 
-            // Self-detection by node ID
             val isSelf = ownNodeId?.let { own ->
                 var match = true
                 for (i in 0 until NODE_ID_LEN) {
@@ -220,19 +216,16 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ── BLE Advertising ─────────────────────────────────────────────────
-
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleAdvertising ABORT: BT disabled")
             return
         }
         if (bleAdvertiser == null) {
-            DiagLogger.ble("startBleAdvertising ABORT: advertiser is null (device may not support BLE peripheral)")
+            DiagLogger.ble("startBleAdvertising ABORT: advertiser is null")
             return
         }
 
-        // Try extended advertising first; fall back to legacy
         if (bluetoothAdapter?.isLeExtendedAdvertisingSupported == true) {
             startExtendedAdvertising(adData)
         } else {
@@ -267,7 +260,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         try {
             bleAdvertiser?.startAdvertisingSet(params, data, null, null, null, extendedCallback)
         } catch (t: Throwable) {
-            DiagLogger.err(context, "BLE", "startAdvertisingSet threw: ${t.message}", t)
+            DiagLogger.ble("startAdvertisingSet threw: ${t.message}")
         }
     }
 
@@ -280,7 +273,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                 DiagLogger.ble("Extended adv STARTED", "txPower" to txPower.toString())
             } else {
                 isAdvertising.set(false)
-                DiagLogger.err(context, "BLE", "Extended adv FAILED status=$status")
+                DiagLogger.ble("Extended adv FAILED status=$status")
             }
         }
 
@@ -312,7 +305,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         try {
             bleAdvertiser?.startAdvertising(settings, data, legacyAdvertiseCallback)
         } catch (t: Throwable) {
-            DiagLogger.err(context, "BLE", "Legacy startAdvertising threw: ${t.message}", t)
+            DiagLogger.ble("Legacy startAdvertising threw: ${t.message}")
         }
     }
 
@@ -326,7 +319,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                 bleAdvertiser?.stopAdvertising(legacyAdvertiseCallback)
             }
         } catch (t: Throwable) {
-            DiagLogger.err(null, "BLE", "stopAdvertising threw: ${t.message}")
+            DiagLogger.ble("stopAdvertising threw: ${t.message}")
         }
         isAdvertising.set(false)
         DiagLogger.ble("BLE advertising stopped")
@@ -341,19 +334,15 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
         override fun onStartFailure(errorCode: Int) {
             isAdvertising.set(false)
-            DiagLogger.err(context, "BLE", "Legacy adv FAILED status=$errorCode")
+            DiagLogger.ble("Legacy adv FAILED status=$errorCode")
         }
     }
-
-    // ── BLE Connections (stubs) ─────────────────────────────────────────
 
     override fun connectToPeer(peerMacAddress: String): Boolean = true
     override fun sendBlePacket(peerMacAddress: String, data: ByteArray): Boolean = false
     override fun disconnectPeer(peerMacAddress: String) {}
 
     private val gattCallback = object : BluetoothGattCallback() {}
-
-    // ── WiFi Direct (stubs) ─────────────────────────────────────────────
 
     override fun isWifiDirectSupported() = wifiP2pManager != null
     override fun startWifiDirectDiscovery() {}
@@ -370,8 +359,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     override fun getCurrentRssi(peerMacAddress: String) = Int.MIN_VALUE
     override fun setBleTxPower(dbm: Int) {}
     override fun setWifiTxPower(dbm: Int) {}
-
-    // ── Heartbeat ───────────────────────────────────────────────────────
 
     private fun startHeartbeat() {
         heartbeatHandler.removeCallbacks(heartbeatRunnable)
