@@ -1,11 +1,20 @@
 package com.rezvani.mesh.ui.screens
 
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,19 +22,41 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rezvani.mesh.BuildConfig
 import com.rezvani.mesh.ui.viewmodel.StatusViewModel
+import com.rezvani.mesh.utils.DiagLogger
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun StatusScreen(
     viewModel: StatusViewModel = viewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
+    val uiState by viewModel.uiState.collectAsState()
+
+    // local filter state
+    var activeTag by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showErrorsOnly by remember { mutableStateOf(false) }
+
+    // Apply filters
+    val filteredLogs = remember(uiState.logLines, activeTag, searchQuery, showErrorsOnly) {
+        uiState.logLines.filter { line ->
+            val tagOk = activeTag == null || line.contains("[${activeTag}/")
+            val queryOk = searchQuery.isEmpty() || line.contains(searchQuery, ignoreCase = true)
+            val errOk = !showErrorsOnly || line.contains("ERROR")
+            tagOk && queryOk && errOk
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -34,12 +65,28 @@ fun StatusScreen(
     ) {
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Mesh status banner – long‑press injects mock peer (debug only)
+        // ── Build provenance banner ──
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = "Build: ${BuildConfig.GIT_SHA}  •  ${BuildConfig.GIT_BRANCH}  •  ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(BuildConfig.BUILD_TIME))} UTC\nLoopback=${BuildConfig.DEBUG_LOOPBACK}   Inject=${BuildConfig.DEBUG_INJECT_PEERS}",
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── Mesh status banner (long‑press mock peer) ──
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                    onClick = { /* normal tap – nothing */ },
+                    onClick = { /* normal tap */ },
                     onLongClick = {
                         if (BuildConfig.DEBUG_INJECT_PEERS) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -59,8 +106,7 @@ fun StatusScreen(
                         .size(14.dp)
                         .clip(CircleShape)
                         .background(
-                            if (uiState.active) Color(0xFF4CAF50)
-                            else Color(0xFFFF9800)
+                            if (uiState.active) Color(0xFF4CAF50) else Color(0xFFFF9800)
                         )
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -82,7 +128,7 @@ fun StatusScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Live data cards
+        // ── Live data cards ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -91,15 +137,88 @@ fun StatusScreen(
             LiveDataCard(Modifier.weight(1f), uiState.signalStrength, "Best RSSI", Color(0xFFFF9800))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Diagnostic log
-        Text("Diagnostic Log", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // ── Diagnostic section header + tools ──
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Diagnostic Log",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = {
+                val file = exportLogs(context)
+                if (file != null) {
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Export diagnostic log"))
+                }
+            }) {
+                Icon(Icons.Filled.Share, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        // ── Tag filter chips ──
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val tags = listOf(null to "ALL", "BLE" to "BLE", "RUST" to "RUST", "UI" to "UI", "SVC" to "SVC", "CRASH" to "CRASH")
+            tags.forEach { (tag, label) ->
+                FilterChip(
+                    selected = activeTag == tag,
+                    onClick = { activeTag = if (activeTag == tag) null else tag },
+                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
-        LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            itemsIndexed(uiState.logLines) { _, line ->
-                Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 2.dp))
+        // ── Search bar + error‑only toggle ──
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Search logs…") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall
+            )
+            FilterChip(
+                selected = showErrorsOnly,
+                onClick = { showErrorsOnly = !showErrorsOnly },
+                label = { Text("Errors", style = MaterialTheme.typography.labelSmall) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // ── Log list ──
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            itemsIndexed(filteredLogs) { _, line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (line.contains("ERROR")) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
             }
         }
     }
@@ -112,5 +231,21 @@ fun LiveDataCard(modifier: Modifier, value: String, label: String, color: Color)
             Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = color)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/** Export last 2000 entries as a timestamped text file to external files, returns the File for sharing */
+private fun exportLogs(context: Context): File? {
+    return try {
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        val ts = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val file = File(dir, "rezvan-diag-$ts-${BuildConfig.GIT_SHA}.txt")
+        file.writeText(
+            DiagLogger.entries.value.joinToString("\n") { it.formatted() }
+        )
+        file
+    } catch (e: Exception) {
+        Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        null
     }
 }
