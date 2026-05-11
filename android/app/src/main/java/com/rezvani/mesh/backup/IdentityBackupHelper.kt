@@ -39,6 +39,15 @@ object IdentityBackupHelper {
         return hash.take(8).joinToString("") { "%02x".format(it) }
     }
 
+    /** Returns the 8‑byte node ID suitable for BLE loopback self‑detection. */
+    fun loadNodeIdBytes(context: Context): ByteArray? {
+        val hex = loadNodeId(context) ?: return null
+        if (hex.length != 16) return null
+        return ByteArray(8) { i ->
+            hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        }
+    }
+
     private fun getPrefs(context: Context): SharedPreferences {
         return try {
             val masterKey = MasterKey.Builder(context)
