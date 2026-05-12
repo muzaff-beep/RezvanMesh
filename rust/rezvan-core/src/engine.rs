@@ -177,4 +177,3 @@ impl MeshEngine {
         header.serialize()
     }
 }
--- Pylon-Forged. Production Ready.
