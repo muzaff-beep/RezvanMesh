@@ -1,9 +1,7 @@
-// lib.rs — Full file (unchanged logic, verified contracts)
+// rezvan-common/src/lib.rs
+
 use sha2::{Sha256, Digest};
 
-// ---------------------------------------------------------------------------
-// Node ID
-// ---------------------------------------------------------------------------
 pub type NodeId = [u8; 8];
 
 pub fn compute_node_id(public_key: &[u8; 32]) -> NodeId {
@@ -13,9 +11,6 @@ pub fn compute_node_id(public_key: &[u8; 32]) -> NodeId {
     node_id
 }
 
-// ---------------------------------------------------------------------------
-// Mesh Packet Header
-// ---------------------------------------------------------------------------
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeshPacketHeader {
     pub version: u8,
@@ -62,9 +57,6 @@ impl MeshPacketHeader {
 
 const _: () = assert!(MeshPacketHeader::SIZE == 26);
 
-// ---------------------------------------------------------------------------
-// OGM Payload
-// ---------------------------------------------------------------------------
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OGMPayload {
     pub timestamp: u64,
@@ -127,9 +119,6 @@ impl NeighborInfo {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Decrypted Message
-// ---------------------------------------------------------------------------
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecryptedMessage {
     pub conversation_id: [u8; 16],
@@ -167,9 +156,6 @@ impl DecryptedMessage {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,4 +220,4 @@ mod tests {
         let deser = DecryptedMessage::deserialize(&ser).unwrap();
         assert_eq!(msg, deser);
     }
-}
+    }
