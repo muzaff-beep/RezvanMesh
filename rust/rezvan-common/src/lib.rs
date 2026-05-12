@@ -1,3 +1,4 @@
+// lib.rs — Full file (unchanged logic, verified contracts)
 use sha2::{Sha256, Digest};
 
 // ---------------------------------------------------------------------------
@@ -18,17 +19,17 @@ pub fn compute_node_id(public_key: &[u8; 32]) -> NodeId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeshPacketHeader {
     pub version: u8,
-    pub packet_type: u8,         // 0x01 = OGM, 0x02 = Data, 0x03 = Broadcast, 0x04 = X3DH
+    pub packet_type: u8,
     pub ttl: u8,
-    pub originator: NodeId,      // 8 bytes
+    pub originator: NodeId,
     pub sequence: u32,
     pub hop_count: u8,
-    pub next_hop: NodeId,        // 8 bytes
+    pub next_hop: NodeId,
     pub payload_len: u16,
 }
 
 impl MeshPacketHeader {
-    pub const SIZE: usize = 26;   // 1+1+1+8+4+1+8+2
+    pub const SIZE: usize = 26;
 
     pub fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(Self::SIZE);
@@ -59,7 +60,6 @@ impl MeshPacketHeader {
     }
 }
 
-// Compile-time assertion
 const _: () = assert!(MeshPacketHeader::SIZE == 26);
 
 // ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ pub struct OGMPayload {
 }
 
 impl OGMPayload {
-    pub const SIZE: usize = 50;   // 8+1+4+1+(9*4)
+    pub const SIZE: usize = 50;
 
     pub fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(Self::SIZE);
@@ -168,7 +168,7 @@ impl DecryptedMessage {
 }
 
 // ---------------------------------------------------------------------------
-// Tests (including fuzz for truncated headers)
+// Tests
 // ---------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
