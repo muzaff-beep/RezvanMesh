@@ -1,4 +1,5 @@
-// engine.rs — Full file
+// rezvan-core/src/engine.rs
+
 use crate::action::Action;
 use crate::power::{PowerState, compute_state};
 use crate::routing::RoutingTable;
