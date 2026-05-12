@@ -1,3 +1,4 @@
+// RadioControllerImpl.kt — Full file
 package com.rezvani.mesh.radio
 
 import android.bluetooth.*
@@ -158,7 +159,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
             val scanRecord = result.scanRecord ?: return
 
-            // Log raw manufacturer data for the first few advertisements
             if (rawLogLimit.get() > 0) {
                 val mfrData = scanRecord.getManufacturerSpecificData()
                 val ids = mutableListOf<Int>()
@@ -175,8 +175,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             }
 
             val manufacturerData = scanRecord.getManufacturerSpecificData(MANUFACTURER_ID) ?: return
-            if (manufacturerData.size < NODE_ID_OFFSET + NODE_ID_LEN) return
-            if (manufacturerData[0] != MAGIC_BYTE_0 || manufacturerData[1] != MAGIC_BYTE_1) return
+            if (manufacturerData.size < 26) return
 
             rxTotal.incrementAndGet()
 
@@ -229,7 +228,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     }
 
     private fun startLegacyAdvertising(adData: ByteArray) {
-        val truncated = if (adData.size > 24) adData.copyOf(24) else adData
+        val truncated = if (adData.size > 27) adData.copyOf(27) else adData
         DiagLogger.ble("Legacy adv starting",
             "payload" to truncated.size.toString(),
             "dropped" to (adData.size - truncated.size).toString())
@@ -316,9 +315,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     companion object {
         private const val TAG = "RadioControllerImpl"
         private const val MANUFACTURER_ID = 0xFFFF
-        private val MAGIC_BYTE_0 = 0x52.toByte()
-        private val MAGIC_BYTE_1 = 0x56.toByte()
-        private const val NODE_ID_OFFSET = 2
+        private const val NODE_ID_OFFSET = 3
         private const val NODE_ID_LEN = 8
         private val BLE_SERVICE_UUID = ParcelUuid(UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb"))
         const val WIFI_PORT = 4237
