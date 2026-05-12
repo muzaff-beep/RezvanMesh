@@ -14,7 +14,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
-import android.util.SparseArray
 import com.rezvani.mesh.BuildConfig
 import com.rezvani.mesh.utils.DiagLogger
 import java.io.DataInputStream
@@ -120,6 +119,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         startHeartbeat()
     }
 
+    // ── BLE Scanning (legacy mode, continuous) ─────────────────────────
+
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleScan ABORT: BT disabled or null adapter")
@@ -132,16 +133,12 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         if (isScanning.get()) return
         isScanning.set(true)
 
-        val settingsBuilder = ScanSettings.Builder()
+        val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            settingsBuilder.setLegacy(false)
-            settingsBuilder.setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
-        }
-        val settings = settingsBuilder.build()
+            .build()
 
-        DiagLogger.ble("BLE scan starting – extended‑compatible")
+        DiagLogger.ble("BLE scan starting – legacy mode, continuous")
         bleScanner?.startScan(null, settings, scanCallback)
     }
 
@@ -215,6 +212,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
+    // ── BLE Advertising (legacy only) ──────────────────────────────────
+
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleAdvertising ABORT: BT disabled")
@@ -226,62 +225,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
         if (isAdvertising.get()) return
 
-        if (bluetoothAdapter?.isLeExtendedAdvertisingSupported == true) {
-            startExtendedAdvertising(adData)
-        } else {
-            DiagLogger.ble("Extended advertising NOT supported – using legacy 24‑byte path")
-            startLegacyAdvertising(adData)
-        }
-    }
-
-    private fun startExtendedAdvertising(adData: ByteArray) {
-        val maxLen = bluetoothAdapter?.leMaximumAdvertisingDataLength ?: 254
-        val payload = if (adData.size > maxLen) adData.copyOf(maxLen) else adData
-
-        val params = AdvertisingSetParameters.Builder()
-            .setLegacyMode(false)
-            .setConnectable(false)
-            .setScannable(false)
-            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
-            .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
-            .setSecondaryPhy(BluetoothDevice.PHY_LE_1M)
-            .build()
-
-        val data = AdvertiseData.Builder()
-            .setIncludeDeviceName(false)
-            .addManufacturerData(MANUFACTURER_ID, payload)
-            .build()
-
-        DiagLogger.ble("Extended adv starting",
-            "payload" to payload.size.toString(),
-            "max" to maxLen.toString())
-
-        try {
-            bleAdvertiser?.startAdvertisingSet(params, data, null, null, null, extendedCallback)
-        } catch (t: Throwable) {
-            DiagLogger.ble("startAdvertisingSet threw: ${t.message}")
-        }
-    }
-
-    private val extendedCallback = object : AdvertisingSetCallback() {
-        override fun onAdvertisingSetStarted(set: AdvertisingSet?, txPower: Int, status: Int) {
-            if (status == AdvertisingSetCallback.ADVERTISE_SUCCESS) {
-                advertisingSet = set
-                isAdvertising.set(true)
-                txStarts.incrementAndGet()
-                DiagLogger.ble("Extended adv STARTED", "txPower" to txPower.toString())
-            } else {
-                isAdvertising.set(false)
-                DiagLogger.ble("Extended adv FAILED status=$status")
-            }
-        }
-
-        override fun onAdvertisingSetStopped(set: AdvertisingSet?) {
-            isAdvertising.set(false)
-            advertisingSet = null
-            DiagLogger.ble("Extended adv STOPPED")
-        }
+        startLegacyAdvertising(adData)
     }
 
     private fun startLegacyAdvertising(adData: ByteArray) {
@@ -311,12 +255,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     override fun stopBleAdvertising() {
         if (!isAdvertising.get()) return
         try {
-            if (advertisingSet != null) {
-                bleAdvertiser?.stopAdvertisingSet(extendedCallback)
-                advertisingSet = null
-            } else {
-                bleAdvertiser?.stopAdvertising(legacyAdvertiseCallback)
-            }
+            bleAdvertiser?.stopAdvertising(legacyAdvertiseCallback)
         } catch (t: Throwable) {
             DiagLogger.ble("stopAdvertising threw: ${t.message}")
         }
