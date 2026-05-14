@@ -1,12 +1,17 @@
-// android/app/src/main/java/com/rezvani/mesh/ui/NavGraph.kt
+// android/app/src/main/java/com/rezvani/mesh/ui/navigation/NavGraph.kt
 
-package com.rezvani.mesh.ui
+package com.rezvani.mesh.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.rezvani.mesh.MeshServiceConnection
+import com.rezvani.mesh.ui.screens.ContactsScreen
+import com.rezvani.mesh.ui.screens.DiagnosticsScreen
+import com.rezvani.mesh.ui.screens.MessagesScreen
+import com.rezvani.mesh.ui.screens.SettingsScreen
+import com.rezvani.mesh.ui.screens.StatusScreen
 
 @Composable
 fun NavGraph(
