@@ -1,4 +1,6 @@
-package com.rezvani.mesh.ui
+// android/app/src/main/java/com/rezvani/mesh/ui/screens/ContactsScreen.kt
+
+package com.rezvani.mesh.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
