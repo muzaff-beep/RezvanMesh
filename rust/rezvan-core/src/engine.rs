@@ -109,6 +109,25 @@ impl MeshEngine {
                 }
                 (None, Vec::new())
             }
+            0x03 => {
+                // Emergency broadcast – decrypt and return with high priority marker
+                if let Some(payload) = packet.get(26..) {
+                    let content = if let Ok(plain) = self.sessions.decrypt(&header.originator, payload) {
+                        plain
+                    } else {
+                        payload.to_vec()   // broadcast may be unencrypted
+                    };
+                    let msg = DecryptedMessage {
+                        conversation_id: [0u8; 16],
+                        sender_id: header.originator,
+                        timestamp,
+                        message_type: 3,   // emergency
+                        content,
+                    };
+                    return (Some(msg), Vec::new());
+                }
+                (None, Vec::new())
+            }
             0x04 => {
                 if let Some(payload) = packet.get(26..) {
                     let _ = self.sessions.process_inbound_handshake(&header.originator, payload);
@@ -123,7 +142,7 @@ impl MeshEngine {
         &mut self,
         recipient: &NodeId,
         plaintext: &[u8],
-        _msg_type: u8,
+        msg_type: u8,
     ) -> Vec<Action> {
         let mut actions = Vec::new();
 
@@ -147,7 +166,34 @@ impl MeshEngine {
         packet.extend_from_slice(&encrypted);
 
         actions.push(Action::SendBlePacket {
-            mac: [0xFFu8; 6],
+            mac: [0xFFu8; 6],   // placeholder; will be resolved by recipient's NodeId->MAC mapping
+            data: packet,
+        });
+
+        actions
+    }
+
+    pub fn send_broadcast(&mut self, message: &[u8]) -> Vec<Action> {
+        let mut actions = Vec::new();
+
+        // Emergency broadcast packets are NOT encrypted (public safety).
+        let header = rezvan_common::MeshPacketHeader {
+            version: 0x01,
+            packet_type: 0x03,
+            ttl: 15,
+            originator: self.node_id,
+            sequence: self.ogm_sequence,
+            hop_count: 0,
+            next_hop: [0u8; 8],
+            payload_len: message.len() as u16,
+        };
+
+        let mut packet = header.serialize();
+        packet.extend_from_slice(message);
+
+        // Broadcast via GATT to all known peers (MACs to be filled by radio layer)
+        actions.push(Action::SendBlePacket {
+            mac: [0xFFu8; 6], // special marker: radio layer will iterate over connected peers
             data: packet,
         });
 
