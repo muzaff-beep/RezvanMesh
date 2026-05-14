@@ -1,108 +1,33 @@
-package com.rezvani.mesh.ui.navigation
+// android/app/src/main/java/com/rezvani/mesh/ui/NavGraph.kt
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.navigation.NavGraph.Companion.findStartDestination
+package com.rezvani.mesh.ui
+
+import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import com.rezvani.mesh.ui.screens.*
+import com.rezvani.mesh.MeshServiceConnection
 
 @Composable
-fun MainScreenWithBottomNav() {
-    val navController = rememberNavController()
-
-    Scaffold(
-        bottomBar = { BottomNavigationBar(navController) }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = "onboarding",
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable("onboarding") {
-                OnboardingScreen(onEnterMesh = {
-                    navController.navigate("status") {
-                        popUpTo("onboarding") { inclusive = true }
-                    }
-                })
-            }
-            composable("status") {
-                StatusScreen()
-            }
-            composable("chats") {
-                ChatsScreen(
-                    onConversationClick = { _, _ -> },
-                    onNewMessageClick = {},
-                    onNewChannelClick = { navController.navigate("channels") },
-                    onEmergencyClick = { navController.navigate("emergency") }
-                )
-            }
-            composable("channels") {
-                ChannelsScreen(
-                    onChannelClick = {},
-                    onCreateChannel = {}
-                )
-            }
-            composable("emergency") {
-                EmergencyScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-            composable("settings") {
-                SettingsScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-            composable("diagnostics") {
-                DiagnosticsScreen()
-            }
+fun NavGraph(
+    navController: NavHostController,
+    meshConnection: MeshServiceConnection
+) {
+    NavHost(navController = navController, startDestination = "status") {
+        composable("status") {
+            StatusScreen(meshConnection)
+        }
+        composable("messages") {
+            MessagesScreen(meshConnection)
+        }
+        composable("contacts") {
+            ContactsScreen(meshConnection)
+        }
+        composable("settings") {
+            SettingsScreen()
+        }
+        composable("diagnostics") {
+            DiagnosticsScreen()
         }
     }
 }
-
-@Composable
-fun BottomNavigationBar(navController: NavHostController) {
-    val items = listOf(
-        BottomNavItem("status", "Status"),
-        BottomNavItem("chats", "Chats"),
-        BottomNavItem("channels", "Channels"),
-        BottomNavItem("emergency", "Emergency")
-    )
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-        items.forEach { item ->
-            NavigationBarItem(
-                icon = {
-                    when (item.route) {
-                        "status" -> Icon(Icons.Filled.Home, contentDescription = null)
-                        "chats" -> Icon(Icons.Filled.Chat, contentDescription = null)
-                        "channels" -> Icon(Icons.Filled.Groups, contentDescription = null)
-                        "emergency" -> Icon(Icons.Filled.Warning, contentDescription = null)
-                    }
-                },
-                label = { Text(item.label) },
-                selected = currentRoute == item.route,
-                onClick = {
-                    if (currentRoute != item.route) {
-                        navController.navigate(item.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                }
-            )
-        }
-    }
-}
-
-data class BottomNavItem(val route: String, val label: String)
