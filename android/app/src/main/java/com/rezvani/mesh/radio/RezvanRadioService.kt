@@ -27,6 +27,8 @@ class RezvanRadioService : Service() {
         const val CHANNEL_ID = "rezvan_mesh"
         const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.rezvani.mesh.STOP_SERVICE"
+        private const val SEED_RETRY_DELAY_MS = 500L
+        private const val SEED_MAX_RETRIES = 10
     }
 
     private lateinit var notificationManager: NotificationManager
@@ -97,17 +99,23 @@ class RezvanRadioService : Service() {
 
     private fun loadIdentityAndInitEngine() {
         serviceScope.launch {
-            try {
-                val seed = IdentityBackupHelper.loadSeed(this@RezvanRadioService)
-                if (seed == null) {
-                    DiagLogger.ble("No identity seed yet")
-                    return@launch
+            var retries = 0
+            while (retries < SEED_MAX_RETRIES && !isDestroyed.get()) {
+                try {
+                    val seed = IdentityBackupHelper.loadSeed(this@RezvanRadioService)
+                    if (seed != null) {
+                        DiagLogger.ble("Service seed bytes: ${seed.size}")
+                        initMeshEngine(seed)
+                        return@launch
+                    }
+                } catch (e: Exception) {
+                    DiagLogger.err("SERVICE", "Error loading identity: ${e.message}", e)
                 }
-                DiagLogger.ble("Service seed bytes: ${seed.size}")
-                initMeshEngine(seed)
-            } catch (e: Exception) {
-                DiagLogger.err("SERVICE", "Error loading identity: ${e.message}", e)
+                retries++
+                DiagLogger.ble("Seed not ready, retry $retries/$SEED_MAX_RETRIES")
+                delay(SEED_RETRY_DELAY_MS)
             }
+            DiagLogger.ble("Seed loading failed after $SEED_MAX_RETRIES retries")
         }
     }
 
