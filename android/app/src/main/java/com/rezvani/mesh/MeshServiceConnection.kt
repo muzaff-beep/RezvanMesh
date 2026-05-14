@@ -21,10 +21,8 @@ class MeshServiceConnection(private val context: Context) : ServiceConnection {
 
     fun sendTextMessage(peerNodeId: ByteArray, text: String) {
         val service = activeService ?: return
-        // Resolve NodeId -> MAC via routing table (simplified: use a dummy MAC, GATT will handle via cached devices)
-        val mac = service.getMacForNodeId(peerNodeId) ?: return
         service.sendMessage(peerNodeId, text.toByteArray())
-        DiagLogger.ble("sendTextMessage enqueued to $mac")
+        DiagLogger.ble("sendTextMessage enqueued")
     }
 
     fun sendEmergencyBroadcast(message: String) {
