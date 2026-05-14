@@ -10,9 +10,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.rezvani.mesh.MainActivity
@@ -23,7 +21,6 @@ import com.rezvani.mesh.rust.MeshEngine
 import com.rezvani.mesh.rust.NodeId
 import com.rezvani.mesh.utils.DiagLogger
 import com.rezvani.mesh.utils.IdentityBackupHelper
-import com.rezvani.mesh.utils.PowerProfileManager
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -42,12 +39,12 @@ class RezvanRadioService : Service() {
 
     private var radioController: RadioControllerImpl? = null
     private var engine: MeshEngine? = null
-    private var ownNodeId: NodeId? = null
+    var ownNodeId: NodeId? = null
+        private set
     private var meshConnection: MeshServiceConnection? = null
     private val pendingPackets = ConcurrentHashMap<String, MutableList<ByteArray>>()
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val tickHandler = Handler(Looper.getMainLooper())
     private var tickJob: Job? = null
     private var isDestroyed = AtomicBoolean(false)
 
@@ -98,7 +95,7 @@ class RezvanRadioService : Service() {
 
     private fun acquireWakeLock() {
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RezvanMesh::Service").apply {
-            acquire(10 * 60 * 1000L) // 10 minutes timeout
+            acquire(10 * 60 * 1000L)
         }
         DiagLogger.service("WakeLock acquired")
     }
@@ -140,21 +137,19 @@ class RezvanRadioService : Service() {
             while (isActive && !isDestroyed.get()) {
                 delay(1000L)
                 val actions = engine?.tick() ?: continue
-                DiagLogger.tick("Tick #${engine?.adv_sequence ?: 0}: ${actions.size} actions dispatched")
                 for (action in actions) {
                     when (action) {
                         is Action.SendBleAdvertisement -> {
                             radioController?.startBleAdvertising(action.data, 1000)
-                            DiagLogger.tick("Advertise payload len=${action.data.size}")
                         }
                         is Action.SendBlePacket -> {
-                            // Resolve MAC from node ID via routing table or known contact
-                            val mac = resolveMacForNodeId(action.recipient) ?: broadcastMacMarker
-                            if (mac == broadcastMacMarker) {
-                                // Broadcast to all connected peers
-                                radioController?.sendBroadcastPacket(action.data)
+                            // Resolve MAC if possible
+                            val macHex = resolveMacForNodeIdBytes(action.mac)
+                            if (macHex != null && macHex != "FF:FF:FF:FF:FF:FF") {
+                                radioController?.sendBlePacket(macHex, action.data)
                             } else {
-                                radioController?.sendBlePacket(mac, action.data)
+                                // Broadcast fallback
+                                radioController?.sendBroadcastPacket(action.data)
                             }
                         }
                         is Action.DiagLog -> {
@@ -167,14 +162,20 @@ class RezvanRadioService : Service() {
         }
     }
 
-    private val broadcastMacMarker = "FF:FF:FF:FF:FF:FF"
-
-    private fun resolveMacForNodeId(nodeId: NodeId): String? {
-        // Simple mapping: maintain a map of NodeId (hex) -> MAC from scanned ads
-        // For now return broadcast marker; actual resolution will be added later.
-        return broadcastMacMarker
+    /**
+     * Converts a 6-byte MAC array to a hex string like "AA:BB:CC:DD:EE:FF".
+     * If the MAC is all 0xFF, returns the broadcast marker.
+     */
+    private fun resolveMacForNodeIdBytes(macBytes: ByteArray): String? {
+        if (macBytes.size != 6) return null
+        val hex = macBytes.joinToString(":") { "%02x".format(it) }.uppercase()
+        if (hex == "FF:FF:FF:FF:FF:FF") return "FF:FF:FF:FF:FF:FF"
+        return hex
     }
 
+    /**
+     * Called when a BLE advertisement or GATT write arrives.
+     */
     fun onPacketReceived(data: ByteArray, rssi: Int) {
         serviceScope.launch {
             val result = engine?.processIncoming(data, rssi, System.currentTimeMillis())
@@ -201,8 +202,13 @@ class RezvanRadioService : Service() {
         val actions = engine?.send_message(recipient, plaintext, 0) ?: return
         for (action in actions) {
             if (action is Action.SendBlePacket) {
-                // Placeholder: use broadcast MAC; to be refined when node discovery is mature
-                radioController?.sendBroadcastPacket(action.data)
+                val macBytes = action.mac
+                val mac = resolveMacForNodeIdBytes(macBytes) ?: "FF:FF:FF:FF:FF:FF"
+                if (mac != "FF:FF:FF:FF:FF:FF") {
+                    radioController?.sendBlePacket(mac, action.data)
+                } else {
+                    radioController?.sendBroadcastPacket(action.data)
+                }
             }
         }
     }
@@ -216,8 +222,12 @@ class RezvanRadioService : Service() {
         }
     }
 
-    // Contact & Node ID helpers – to be extended after scan/routing integration
-    fun getMacForNodeId(nodeId: NodeId): String? = broadcastMacMarker
+    /**
+     * Look up the MAC address for a NodeId from the radio controller's advertisement cache.
+     */
+    fun getMacForNodeId(nodeIdHex: String): String? {
+        return radioController?.getMacForNodeId(nodeIdHex)
+    }
 
     fun dequeuePendingPackets(address: String): List<ByteArray> {
         return pendingPackets.remove(address)?.toList() ?: emptyList()
