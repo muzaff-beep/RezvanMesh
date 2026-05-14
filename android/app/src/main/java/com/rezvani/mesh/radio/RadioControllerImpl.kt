@@ -1,4 +1,5 @@
-// RadioControllerImpl.kt — Full file
+// android/app/src/main/java/com/rezvani/mesh/radio/RadioControllerImpl.kt
+
 package com.rezvani.mesh.radio
 
 import android.bluetooth.*
@@ -35,6 +36,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val bluetoothAdapter = bluetoothManager.adapter
     private var bleScanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
     private var bleAdvertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
+    private var gattServer: BluetoothGattServer? = null
 
     private val bleGattMap = ConcurrentHashMap<String, BluetoothGatt>()
     private val bleSenderMap = ConcurrentHashMap<String, BlePacketSender>()
@@ -85,6 +87,11 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val radioService: RezvanRadioService? =
         if (context is RezvanRadioService) context else null
 
+    // GATT server and service IDs
+    private val MESH_SERVICE_UUID = UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb")
+    private val MESH_CHARACTERISTIC_WRITE_UUID = UUID.fromString("0000a1b3-0000-1000-8000-00805f9b34fb")
+    private val MESH_CHARACTERISTIC_NOTIFY_UUID = UUID.fromString("0000a1b4-0000-1000-8000-00805f9b34fb")
+
     fun setOwnNodeId(nodeId: ByteArray) {
         if (nodeId.size != NODE_ID_LEN) {
             DiagLogger.ble("setOwnNodeId WRONG LENGTH: got ${nodeId.size}, expected $NODE_ID_LEN")
@@ -118,6 +125,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             startWifiServer()
         }
         startHeartbeat()
+        startGattServer()
     }
 
     // ── BLE Scanning (legacy mode, continuous) ─────────────────────────
@@ -211,7 +219,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ── BLE Advertising (legacy only) ──────────────────────────────────
+    // ── BLE Advertising (legacy only, connectable for GATT) ────────────
 
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) {
@@ -236,12 +244,13 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-            .setConnectable(false)
+            .setConnectable(true)   // allow GATT connections for messaging
             .build()
 
         val data = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
             .addManufacturerData(MANUFACTURER_ID, truncated)
+            .addServiceUuid(ParcelUuid(MESH_SERVICE_UUID))
             .build()
 
         try {
@@ -274,12 +283,117 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    override fun connectToPeer(peerMacAddress: String): Boolean = true
-    override fun sendBlePacket(peerMacAddress: String, data: ByteArray): Boolean = false
-    override fun disconnectPeer(peerMacAddress: String) {}
+    // ── GATT Server (peripheral role) ──────────────────────────────────
 
-    private val gattCallback = object : BluetoothGattCallback() {}
+    private fun startGattServer() {
+        gattServer = bluetoothManager.openGattServer(context, gattServerCallback)
+        val service = BluetoothGattService(MESH_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+        val writeChar = BluetoothGattCharacteristic(
+            MESH_CHARACTERISTIC_WRITE_UUID,
+            BluetoothGattCharacteristic.PROPERTY_WRITE,
+            BluetoothGattCharacteristic.PERMISSION_WRITE
+        )
+        service.addCharacteristic(writeChar)
+        // Notify characteristic for future indication, not used yet.
+        val notifyChar = BluetoothGattCharacteristic(
+            MESH_CHARACTERISTIC_NOTIFY_UUID,
+            BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+            BluetoothGattCharacteristic.PERMISSION_READ
+        )
+        service.addCharacteristic(notifyChar)
+        gattServer?.addService(service)
+        DiagLogger.ble("GATT server started")
+    }
 
+    private val gattServerCallback = object : BluetoothGattServerCallback() {
+        override fun onCharacteristicWriteRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            characteristic: BluetoothGattCharacteristic,
+            preparedWrite: Boolean,
+            responseNeeded: Boolean,
+            offset: Int,
+            value: ByteArray
+        ) {
+            if (characteristic.uuid == MESH_CHARACTERISTIC_WRITE_UUID) {
+                DiagLogger.ble("GATT write rx", "addr" to device.address.takeLast(5), "len" to value.size.toString())
+                radioService?.onPacketReceived(value, cachedRssiMap[device.address] ?: -100)
+                if (responseNeeded) {
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+                }
+            }
+        }
+    }
+
+    // ── GATT Client (central role) ────────────────────────────────────
+
+    override fun connectToPeer(peerMacAddress: String): Boolean {
+        if (bleGattMap.containsKey(peerMacAddress)) return true
+        val device = bluetoothAdapter?.getRemoteDevice(peerMacAddress) ?: return false
+        DiagLogger.ble("Connecting GATT to $peerMacAddress")
+        val gatt = device.connectGatt(context, false, gattClientCallback)
+        bleGattMap[peerMacAddress] = gatt
+        return true
+    }
+
+    override fun sendBlePacket(peerMacAddress: String, data: ByteArray): Boolean {
+        val sender = bleSenderMap[peerMacAddress]
+        if (sender == null) {
+            DiagLogger.ble("sendBlePacket: no sender for $peerMacAddress, queuing after connect")
+            return false
+        }
+        sender.send(data)
+        return true
+    }
+
+    override fun disconnectPeer(peerMacAddress: String) {
+        bleGattMap.remove(peerMacAddress)?.close()
+        bleSenderMap.remove(peerMacAddress)?.close()
+    }
+
+    private val gattClientCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+            if (gatt == null) return
+            val addr = gatt.device.address
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                DiagLogger.ble("GATT connected to $addr")
+                gatt.discoverServices()
+            } else {
+                DiagLogger.ble("GATT disconnected $addr")
+                bleSenderMap.remove(addr)?.close()
+                bleGattMap.remove(addr)?.close()
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+            if (gatt == null || status != BluetoothGatt.GATT_SUCCESS) return
+            val service = gatt.getService(MESH_SERVICE_UUID) ?: return
+            val writeChar = service.getCharacteristic(MESH_CHARACTERISTIC_WRITE_UUID) ?: return
+            val sender = BlePacketSender(gatt)
+            sender.setCharacteristic(writeChar)
+            bleSenderMap[gatt.device.address] = sender
+            DiagLogger.ble("GATT service discovered, sender ready for ${gatt.device.address}")
+            // Drain any pending messages
+            val pending = radioService?.dequeuePendingPackets(gatt.device.address) ?: emptyList()
+            pending.forEach { sender.send(it) }
+        }
+
+        override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
+            if (gatt == null) return
+            val sender = bleSenderMap[gatt.device.address] ?: return
+            sender.onWriteComplete(status == BluetoothGatt.GATT_SUCCESS)
+        }
+    }
+
+    // ── Broadcast support (send to all connected peers) ────────────────
+
+    override fun sendBroadcastPacket(data: ByteArray) {
+        bleSenderMap.keys.forEach { peer ->
+            sendBlePacket(peer, data)
+        }
+    }
+
+    // ── Wi‑Fi Direct stubs ────────────────────────────────────────────
     override fun isWifiDirectSupported() = wifiP2pManager != null
     override fun startWifiDirectDiscovery() {}
     override fun stopWifiDirectDiscovery() {}
@@ -309,6 +423,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         stopHeartbeat()
         stopBleScan()
         stopBleAdvertising()
+        bleGattMap.values.forEach { it.close() }
+        gattServer?.close()
         DiagLogger.ble("RadioController destroyed")
     }
 
