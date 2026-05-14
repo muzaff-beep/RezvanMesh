@@ -48,6 +48,9 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private val isAdvertising = AtomicBoolean(false)
     private var advertisingSet: AdvertisingSet? = null
+    private var pendingAdvertiseData: ByteArray? = null
+    private var advertiseRetryCount = 0
+    private val maxAdvertiseRetries = 5
 
     private var ownNodeId: ByteArray? = null
 
@@ -88,10 +91,30 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val radioService: RezvanRadioService? =
         if (context is RezvanRadioService) context else null
 
-    // GATT server and service IDs
     private val MESH_SERVICE_UUID = UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb")
     private val MESH_CHARACTERISTIC_WRITE_UUID = UUID.fromString("0000a1b3-0000-1000-8000-00805f9b34fb")
     private val MESH_CHARACTERISTIC_NOTIFY_UUID = UUID.fromString("0000a1b4-0000-1000-8000-00805f9b34fb")
+
+    private val btStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                if (state == BluetoothAdapter.STATE_ON) {
+                    DiagLogger.ble("Bluetooth re-enabled, restarting GATT server")
+                    startGattServer()
+                    bleScanner = bluetoothAdapter?.bluetoothLeScanner
+                    bleAdvertiser = bluetoothAdapter?.bluetoothLeAdvertiser
+                    if (isScanning.get()) {
+                        startBleScan(1000, 1000)
+                    }
+                    if (isAdvertising.get() && pendingAdvertiseData != null) {
+                        advertiseRetryCount = 0
+                        startLegacyAdvertising(pendingAdvertiseData!!)
+                    }
+                }
+            }
+        }
+    }
 
     fun setOwnNodeId(nodeId: ByteArray) {
         if (nodeId.size != NODE_ID_LEN) {
@@ -127,9 +150,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
         startHeartbeat()
         startGattServer()
+        context.registerReceiver(btStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
     }
-
-    // ── BLE Scanning (legacy mode, continuous) ─────────────────────────
 
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
         if (bluetoothAdapter?.isEnabled != true) {
@@ -213,7 +235,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                 "size" to manufacturerData.size.toString())
             cachedRssiMap[result.device.address] = result.rssi
 
-            // Map node ID hex -> MAC address for routing
             val nodeIdHex = manufacturerData.copyOfRange(NODE_ID_OFFSET, NODE_ID_OFFSET + NODE_ID_LEN)
                 .joinToString("") { "%02x".format(it) }
             nodeIdToMac[nodeIdHex] = result.device.address
@@ -226,8 +247,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ── BLE Advertising (legacy only, connectable for GATT) ────────────
-
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleAdvertising ABORT: BT disabled")
@@ -239,6 +258,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
         if (isAdvertising.get()) return
 
+        pendingAdvertiseData = adData
+        advertiseRetryCount = 0
         startLegacyAdvertising(adData)
     }
 
@@ -264,7 +285,20 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             bleAdvertiser?.startAdvertising(settings, data, legacyAdvertiseCallback)
         } catch (t: Throwable) {
             DiagLogger.ble("Legacy startAdvertising threw: ${t.message}")
+            scheduleAdvertiseRetry()
         }
+    }
+
+    private fun scheduleAdvertiseRetry() {
+        if (advertiseRetryCount >= maxAdvertiseRetries) {
+            DiagLogger.ble("Advertising retry limit reached, giving up")
+            return
+        }
+        advertiseRetryCount++
+        DiagLogger.ble("Advertising retry $advertiseRetryCount/$maxAdvertiseRetries in 2s")
+        scanHandler.postDelayed({
+            pendingAdvertiseData?.let { startLegacyAdvertising(it) }
+        }, 2000L)
     }
 
     override fun stopBleAdvertising() {
@@ -281,18 +315,21 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             isAdvertising.set(true)
             txStarts.incrementAndGet()
+            advertiseRetryCount = 0
             DiagLogger.ble("Legacy adv STARTED")
         }
 
         override fun onStartFailure(errorCode: Int) {
             isAdvertising.set(false)
             DiagLogger.ble("Legacy adv FAILED status=$errorCode")
+            scheduleAdvertiseRetry()
         }
     }
 
-    // ── GATT Server (peripheral role) ──────────────────────────────────
-
     private fun startGattServer() {
+        try {
+            gattServer?.close()
+        } catch (_: Throwable) {}
         gattServer = bluetoothManager.openGattServer(context, gattServerCallback)
         val service = BluetoothGattService(MESH_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
         val writeChar = BluetoothGattCharacteristic(
@@ -331,8 +368,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ── GATT Client (central role) ────────────────────────────────────
-
     override fun connectToPeer(peerMacAddress: String): Boolean {
         if (bleGattMap.containsKey(peerMacAddress)) return true
         val device = bluetoothAdapter?.getRemoteDevice(peerMacAddress) ?: return false
@@ -355,6 +390,12 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     override fun disconnectPeer(peerMacAddress: String) {
         bleGattMap.remove(peerMacAddress)?.close()
         bleSenderMap.remove(peerMacAddress)?.close()
+    }
+
+    override fun sendBroadcastPacket(data: ByteArray) {
+        bleSenderMap.keys.forEach { peer ->
+            sendBlePacket(peer, data)
+        }
     }
 
     private val gattClientCallback = object : BluetoothGattCallback() {
@@ -390,19 +431,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ── Broadcast support ──────────────────────────────────────────────
-
-    override fun sendBroadcastPacket(data: ByteArray) {
-        bleSenderMap.keys.forEach { peer ->
-            sendBlePacket(peer, data)
-        }
-    }
-
-    // ── MAC lookup ─────────────────────────────────────────────────────
-
     fun getMacForNodeId(nodeIdHex: String): String? = nodeIdToMac[nodeIdHex]
 
-    // ── Wi‑Fi Direct stubs ────────────────────────────────────────────
     override fun isWifiDirectSupported() = wifiP2pManager != null
     override fun startWifiDirectDiscovery() {}
     override fun stopWifiDirectDiscovery() {}
@@ -434,6 +464,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         stopBleAdvertising()
         bleGattMap.values.forEach { it.close() }
         gattServer?.close()
+        try { context.unregisterReceiver(btStateReceiver) } catch (_: Throwable) {}
         DiagLogger.ble("RadioController destroyed")
     }
 
