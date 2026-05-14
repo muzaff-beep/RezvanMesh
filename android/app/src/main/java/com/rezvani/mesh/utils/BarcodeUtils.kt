@@ -24,20 +24,4 @@ object BarcodeUtils {
             null
         }
     }
-
-    fun decodeQrBitmap(bitmap: Bitmap): String? {
-        // Use ZXing's BarcodeReader or Android ML Kit barcode scanning; here we use ZXing core
-        val intArray = IntArray(bitmap.width * bitmap.height)
-        bitmap.getPixels(intArray, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-        val source = com.google.zxing.RGBLuminanceSource(bitmap.width, bitmap.height, intArray)
-        val binarizer = com.google.zxing.common.HybridBinarizer(source)
-        val binaryBitmap = com.google.zxing.BinaryBitmap(binarizer)
-        val reader = com.google.zxing.qrcode.QRCodeReader()
-        try {
-            val result = reader.decode(binaryBitmap)
-            return result.text
-        } catch (e: Exception) {
-            return null
-        }
-    }
 }
