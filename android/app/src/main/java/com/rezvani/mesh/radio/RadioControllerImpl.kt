@@ -41,6 +41,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val bleGattMap = ConcurrentHashMap<String, BluetoothGatt>()
     private val bleSenderMap = ConcurrentHashMap<String, BlePacketSender>()
     private val cachedRssiMap = ConcurrentHashMap<String, Int>()
+    private val nodeIdToMac = ConcurrentHashMap<String, String>()
 
     private val isScanning = AtomicBoolean(false)
     private val scanHandler = Handler(Looper.getMainLooper())
@@ -211,6 +212,12 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                 "rssi" to result.rssi.toString(),
                 "size" to manufacturerData.size.toString())
             cachedRssiMap[result.device.address] = result.rssi
+
+            // Map node ID hex -> MAC address for routing
+            val nodeIdHex = manufacturerData.copyOfRange(NODE_ID_OFFSET, NODE_ID_OFFSET + NODE_ID_LEN)
+                .joinToString("") { "%02x".format(it) }
+            nodeIdToMac[nodeIdHex] = result.device.address
+
             radioService?.onPacketReceived(manufacturerData, result.rssi)
         }
 
@@ -244,7 +251,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-            .setConnectable(true)   // allow GATT connections for messaging
+            .setConnectable(true)
             .build()
 
         val data = AdvertiseData.Builder()
@@ -294,7 +301,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             BluetoothGattCharacteristic.PERMISSION_WRITE
         )
         service.addCharacteristic(writeChar)
-        // Notify characteristic for future indication, not used yet.
         val notifyChar = BluetoothGattCharacteristic(
             MESH_CHARACTERISTIC_NOTIFY_UUID,
             BluetoothGattCharacteristic.PROPERTY_NOTIFY,
@@ -373,7 +379,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             sender.setCharacteristic(writeChar)
             bleSenderMap[gatt.device.address] = sender
             DiagLogger.ble("GATT service discovered, sender ready for ${gatt.device.address}")
-            // Drain any pending messages
             val pending = radioService?.dequeuePendingPackets(gatt.device.address) ?: emptyList()
             pending.forEach { sender.send(it) }
         }
@@ -385,13 +390,17 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
-    // ── Broadcast support (send to all connected peers) ────────────────
+    // ── Broadcast support ──────────────────────────────────────────────
 
     override fun sendBroadcastPacket(data: ByteArray) {
         bleSenderMap.keys.forEach { peer ->
             sendBlePacket(peer, data)
         }
     }
+
+    // ── MAC lookup ─────────────────────────────────────────────────────
+
+    fun getMacForNodeId(nodeIdHex: String): String? = nodeIdToMac[nodeIdHex]
 
     // ── Wi‑Fi Direct stubs ────────────────────────────────────────────
     override fun isWifiDirectSupported() = wifiP2pManager != null
