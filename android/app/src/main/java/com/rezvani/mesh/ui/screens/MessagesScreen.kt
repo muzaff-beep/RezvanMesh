@@ -14,6 +14,7 @@ import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.data.Contact
 import com.rezvani.mesh.data.ContactsRepository
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessagesScreen(meshConnection: MeshServiceConnection) {
     val messages by meshConnection.receivedMessages.collectAsState()
