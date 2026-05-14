@@ -13,14 +13,10 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import com.rezvani.mesh.MainActivity
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.R
-import com.rezvani.mesh.rust.Action
-import com.rezvani.mesh.rust.MeshEngine
-import com.rezvani.mesh.rust.NodeId
+import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.utils.DiagLogger
-import com.rezvani.mesh.utils.IdentityBackupHelper
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -38,8 +34,8 @@ class RezvanRadioService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
 
     private var radioController: RadioControllerImpl? = null
-    private var engine: MeshEngine? = null
-    var ownNodeId: NodeId? = null
+    private var enginePtr: Long = 0L
+    var ownNodeId: ByteArray? = null
         private set
     private var meshConnection: MeshServiceConnection? = null
     private val pendingPackets = ConcurrentHashMap<String, MutableList<ByteArray>>()
@@ -50,7 +46,6 @@ class RezvanRadioService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        DiagLogger.service("onCreate START")
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         createNotificationChannel()
@@ -58,14 +53,16 @@ class RezvanRadioService : Service() {
         acquireWakeLock()
 
         radioController = RadioControllerImpl(this)
-        DiagLogger.service("Controllers built")
-        DiagLogger.service("Permissions: scan=${checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN) == android.content.pm.PackageManager.PERMISSION_GRANTED} adv=${checkSelfPermission(android.Manifest.permission.BLUETOOTH_ADVERTISE) == android.content.pm.PackageManager.PERMISSION_GRANTED} sdk=${Build.VERSION.SDK_INT}")
+        DiagLogger.ble("Controllers built")
+        val scanOk = checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val advOk = checkSelfPermission(android.Manifest.permission.BLUETOOTH_ADVERTISE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        DiagLogger.ble("Permissions scan=$scanOk adv=$advOk sdk=${Build.VERSION.SDK_INT}")
         radioController?.startBleScan(1000, 1000)
-        DiagLogger.service("BLE scan requested")
+        DiagLogger.ble("BLE scan requested")
 
         loadIdentityAndInitEngine()
         startPeriodicTick()
-        DiagLogger.service("onCreate COMPLETE")
+        DiagLogger.ble("onCreate COMPLETE")
     }
 
     private fun createNotificationChannel() {
@@ -74,9 +71,7 @@ class RezvanRadioService : Service() {
                 CHANNEL_ID,
                 "Rezvan Mesh",
                 NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Mesh networking service"
-            }
+            ).apply { description = "Mesh networking service" }
             notificationManager.createNotificationChannel(channel)
         }
     }
@@ -97,7 +92,7 @@ class RezvanRadioService : Service() {
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RezvanMesh::Service").apply {
             acquire(10 * 60 * 1000L)
         }
-        DiagLogger.service("WakeLock acquired")
+        DiagLogger.ble("WakeLock acquired")
     }
 
     private fun loadIdentityAndInitEngine() {
@@ -105,30 +100,30 @@ class RezvanRadioService : Service() {
             try {
                 val seed = IdentityBackupHelper.loadSeed(this@RezvanRadioService)
                 if (seed == null) {
-                    DiagLogger.service("No identity seed yet")
+                    DiagLogger.ble("No identity seed yet")
                     return@launch
                 }
-                DiagLogger.service("Service seed bytes: ${seed.size}")
+                DiagLogger.ble("Service seed bytes: ${seed.size}")
                 initMeshEngine(seed)
             } catch (e: Exception) {
-                DiagLogger.service("Error loading identity: ${e.message}")
+                DiagLogger.err("SERVICE", "Error loading identity: ${e.message}", e)
             }
         }
     }
 
     private fun initMeshEngine(seed: ByteArray) {
-        if (engine != null) return
+        if (enginePtr != 0L) return
         try {
-            val cryptoProvider = com.rezvani.mesh.crypto.MockCryptoProvider()
-            engine = MeshEngine(seed.copyOf(32), cryptoProvider)
-            val nodeId = IdentityBackupHelper.computeNodeIdFromSeed(seed)
-            ownNodeId = nodeId
-            radioController?.setOwnNodeId(nodeId)
-            DiagLogger.service("ownNodeId set for loopback: ${nodeId.take(4).joinToString("") { "%02x".format(it) }}...")
-            DiagLogger.service("initializeMeshEngine called")
-            DiagLogger.service("MeshCore initialised, ptr=${engine.hashCode()}")
+            enginePtr = com.rezvani.mesh.MeshCore.nativeInit(seed, filesDir.absolutePath)
+            ownNodeId = IdentityBackupHelper.loadNodeIdBytes(this)
+            if (ownNodeId != null) {
+                radioController?.setOwnNodeId(ownNodeId!!)
+            }
+            DiagLogger.ble("initializeMeshEngine called")
+            DiagLogger.ble("MeshCore initialised, ptr=$enginePtr")
+            MeshServiceConnection.meshCorePtr.value = enginePtr
         } catch (e: Exception) {
-            DiagLogger.service("Engine init failed: ${e.message}")
+            DiagLogger.err("SERVICE", "Engine init failed: ${e.message}", e)
         }
     }
 
@@ -136,51 +131,74 @@ class RezvanRadioService : Service() {
         tickJob = serviceScope.launch {
             while (isActive && !isDestroyed.get()) {
                 delay(1000L)
-                val actions = engine?.tick() ?: continue
-                for (action in actions) {
-                    when (action) {
-                        is Action.SendBleAdvertisement -> {
-                            radioController?.startBleAdvertising(action.data, 1000)
-                        }
-                        is Action.SendBlePacket -> {
-                            val macHex = resolveMacForNodeIdBytes(action.mac)
-                            if (macHex != null && macHex != "FF:FF:FF:FF:FF:FF") {
-                                radioController?.sendBlePacket(macHex, action.data)
-                            } else {
-                                radioController?.sendBroadcastPacket(action.data)
+                if (enginePtr == 0L) continue
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        com.rezvani.mesh.MeshCore.nativeTick(enginePtr)
+                    }
+                    if (result != null && result.size >= 1) {
+                        val actionCount = result[0].toInt() and 0xFF
+                        var offset = 1
+                        for (i in 0 until actionCount) {
+                            if (offset + 3 > result.size) break
+                            val actionType = result[offset].toInt() and 0xFF
+                            val payloadLen = ((result[offset + 1].toInt() and 0xFF) shl 8) or (result[offset + 2].toInt() and 0xFF)
+                            offset += 3
+                            if (offset + payloadLen > result.size) break
+                            val payload = result.copyOfRange(offset, offset + payloadLen)
+                            offset += payloadLen
+                            when (actionType) {
+                                0x01 -> radioController?.startBleAdvertising(payload, 1000)
+                                0x03 -> radioController?.sendBroadcastPacket(payload)
                             }
                         }
-                        is Action.DiagLog -> {
-                            DiagLogger.custom(action.tag, action.level, action.message)
-                        }
-                        else -> {}
                     }
+                } catch (e: Exception) {
+                    DiagLogger.err("SERVICE", "Tick error: ${e.message}", e)
                 }
             }
         }
     }
 
-    private fun resolveMacForNodeIdBytes(macBytes: ByteArray): String? {
-        if (macBytes.size != 6) return null
-        val hex = macBytes.joinToString(":") { "%02x".format(it) }.uppercase()
-        if (hex == "FF:FF:FF:FF:FF:FF") return "FF:FF:FF:FF:FF:FF"
-        return hex
-    }
-
     fun onPacketReceived(data: ByteArray, rssi: Int) {
+        if (enginePtr == 0L) return
         serviceScope.launch {
-            val result = engine?.processIncoming(data, rssi, System.currentTimeMillis())
-            if (result != null) {
-                val (decryptedMessage, actions) = result
-                if (decryptedMessage != null) {
-                    meshConnection?.addReceivedMessage(decryptedMessage)
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    com.rezvani.mesh.MeshCore.nativeProcessIncoming(enginePtr, data, rssi, System.currentTimeMillis() * 1000)
                 }
-                for (action in actions) {
-                    when (action) {
-                        is Action.DiagLog -> DiagLogger.custom(action.tag, action.level, action.message)
-                        else -> {}
+                if (result != null && result.size >= 1) {
+                    val actionCount = result[0].toInt() and 0xFF
+                    var offset = 1
+                    for (i in 0 until actionCount) {
+                        if (offset + 3 > result.size) break
+                        val actionType = result[offset].toInt() and 0xFF
+                        val payloadLen = ((result[offset + 1].toInt() and 0xFF) shl 8) or (result[offset + 2].toInt() and 0xFF)
+                        offset += 3
+                        if (offset + payloadLen > result.size) break
+                        val payload = result.copyOfRange(offset, offset + payloadLen)
+                        offset += payloadLen
+                        if (actionType == 0x05) {
+                            val msg = com.rezvani.mesh.rust.DecryptedMessage(
+                                conversationId = payload.copyOfRange(0, 16),
+                                senderId = payload.copyOfRange(16, 24),
+                                timestamp = ((payload[24].toLong() and 0xFF) shl 56) or
+                                        ((payload[25].toLong() and 0xFF) shl 48) or
+                                        ((payload[26].toLong() and 0xFF) shl 40) or
+                                        ((payload[27].toLong() and 0xFF) shl 32) or
+                                        ((payload[28].toLong() and 0xFF) shl 24) or
+                                        ((payload[29].toLong() and 0xFF) shl 16) or
+                                        ((payload[30].toLong() and 0xFF) shl 8) or
+                                        (payload[31].toLong() and 0xFF),
+                                messageType = payload[32],
+                                content = payload.copyOfRange(37, payload.size)
+                            )
+                            meshConnection?.addReceivedMessage(msg)
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                DiagLogger.err("SERVICE", "Packet error: ${e.message}", e)
             }
         }
     }
@@ -189,37 +207,43 @@ class RezvanRadioService : Service() {
         meshConnection = conn
     }
 
-    fun sendMessage(recipient: NodeId, plaintext: ByteArray) {
-        val actions = engine?.send_message(recipient, plaintext, 0) ?: return
-        for (action in actions) {
-            if (action is Action.SendBlePacket) {
-                val macBytes = action.mac
-                val mac = resolveMacForNodeIdBytes(macBytes) ?: "FF:FF:FF:FF:FF:FF"
-                if (mac != "FF:FF:FF:FF:FF:FF") {
-                    radioController?.sendBlePacket(mac, action.data)
-                } else {
-                    radioController?.sendBroadcastPacket(action.data)
+    fun sendMessage(recipient: ByteArray, plaintext: ByteArray) {
+        if (enginePtr == 0L) return
+        serviceScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    com.rezvani.mesh.MeshCore.nativeSendMessage(enginePtr, recipient, plaintext, 0)
                 }
+                if (result != null) {
+                    radioController?.sendBroadcastPacket(result)
+                }
+            } catch (e: Exception) {
+                DiagLogger.err("SERVICE", "Send error: ${e.message}", e)
             }
         }
     }
 
     fun sendBroadcast(message: ByteArray) {
-        val actions = engine?.send_broadcast(message) ?: return
-        for (action in actions) {
-            if (action is Action.SendBlePacket) {
-                radioController?.sendBroadcastPacket(action.data)
+        if (enginePtr == 0L) return
+        serviceScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    com.rezvani.mesh.MeshCore.nativeSendMessage(enginePtr, ByteArray(8), message, 3)
+                }
+                if (result != null) {
+                    radioController?.sendBroadcastPacket(result)
+                }
+            } catch (e: Exception) {
+                DiagLogger.err("SERVICE", "Broadcast error: ${e.message}", e)
             }
         }
-    }
-
-    fun getMacForNodeId(nodeIdHex: String): String? {
-        return radioController?.getMacForNodeId(nodeIdHex)
     }
 
     fun dequeuePendingPackets(address: String): List<ByteArray> {
         return pendingPackets.remove(address)?.toList() ?: emptyList()
     }
+
+    fun getRadioController(): RadioControllerImpl? = radioController
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -236,10 +260,12 @@ class RezvanRadioService : Service() {
 
     override fun onDestroy() {
         isDestroyed.set(true)
+        if (enginePtr != 0L) {
+            com.rezvani.mesh.MeshCore.nativeDestroy(enginePtr)
+        }
         radioController?.onDestroy()
-        engine = null
         wakeLock?.release()
-        DiagLogger.service("Service destroyed")
+        DiagLogger.ble("Service destroyed")
         super.onDestroy()
     }
 }
