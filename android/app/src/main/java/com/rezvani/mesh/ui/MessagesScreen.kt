@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/MessagesScreen.kt
+
 package com.rezvani.mesh.ui
 
 import androidx.compose.foundation.layout.*
@@ -6,20 +8,26 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.DecryptedMessage
+import com.rezvani.mesh.MeshServiceConnection
+import com.rezvani.mesh.data.Contact
+import com.rezvani.mesh.data.ContactsRepository
 
 @Composable
 fun MessagesScreen(meshConnection: MeshServiceConnection) {
     val messages by meshConnection.receivedMessages.collectAsState()
+    val context = LocalContext.current
+    val repository = remember { ContactsRepository(context) }
+    val contacts = remember { repository.loadContacts() }
+    var selectedContact by remember { mutableStateOf<Contact?>(null) }
     var text by remember { mutableStateOf("") }
-    var peerInput by remember { mutableStateOf("") }   // target NodeID hex
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Mesh Messages", style = MaterialTheme.typography.headlineMedium)
 
-        // Emergency broadcast button
+        // Emergency broadcast
         Button(onClick = {
             meshConnection.sendEmergencyBroadcast("EMERGENCY: ${text.ifEmpty { "Mayday" }}")
             text = ""
@@ -29,13 +37,36 @@ fun MessagesScreen(meshConnection: MeshServiceConnection) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Direct message
-        OutlinedTextField(
-            value = peerInput,
-            onValueChange = { peerInput = it },
-            label = { Text("Peer Node ID (hex)") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Select contact to DM
+        var dropdownExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = dropdownExpanded,
+            onExpandedChange = { dropdownExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = selectedContact?.name ?: "Select contact",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Recipient") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = dropdownExpanded,
+                onDismissRequest = { dropdownExpanded = false }
+            ) {
+                contacts.forEach { contact ->
+                    DropdownMenuItem(
+                        text = { Text(contact.name) },
+                        onClick = {
+                            selectedContact = contact
+                            dropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
@@ -43,16 +74,17 @@ fun MessagesScreen(meshConnection: MeshServiceConnection) {
             modifier = Modifier.fillMaxWidth()
         )
         Button(onClick = {
-            val nodeId = try {
-                val bytes = peerInput.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-                if (bytes.size == 8) bytes else null
-            } catch (_: Exception) { null }
-            if (nodeId != null) {
-                meshConnection.sendTextMessage(nodeId, text)
-                text = ""
+            selectedContact?.let { contact ->
+                val nodeIdBytes = try {
+                    contact.nodeIdHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                } catch (_: Exception) { null }
+                if (nodeIdBytes != null) {
+                    meshConnection.sendTextMessage(nodeIdBytes, text)
+                    text = ""
+                }
             }
-        }) {
-            Text("Send to Peer")
+        }, enabled = selectedContact != null && text.isNotBlank()) {
+            Text("Send")
         }
 
         Spacer(modifier = Modifier.height(12.dp))
