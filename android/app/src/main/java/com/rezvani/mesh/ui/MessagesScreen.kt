@@ -10,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.rezvani.mesh.DecryptedMessage
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.data.Contact
 import com.rezvani.mesh.data.ContactsRepository
@@ -27,7 +26,6 @@ fun MessagesScreen(meshConnection: MeshServiceConnection) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Mesh Messages", style = MaterialTheme.typography.headlineMedium)
 
-        // Emergency broadcast
         Button(onClick = {
             meshConnection.sendEmergencyBroadcast("EMERGENCY: ${text.ifEmpty { "Mayday" }}")
             text = ""
@@ -37,7 +35,6 @@ fun MessagesScreen(meshConnection: MeshServiceConnection) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Select contact to DM
         var dropdownExpanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(
             expanded = dropdownExpanded,
