@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/ContactsScreen.kt
+
 package com.rezvani.mesh.ui
 
 import android.Manifest
@@ -9,6 +11,7 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,12 +19,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.data.Contact
@@ -39,14 +45,12 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
     var scannedNodeId by remember { mutableStateOf<String?>(null) }
     var newContactName by remember { mutableStateOf("") }
 
-    // Camera permission
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) showQrScanner = true
     }
 
-    // Own Node ID hex
     val ownNodeIdHex = remember {
         meshConnection.activeService?.ownNodeId?.joinToString("") { "%02x".format(it) } ?: ""
     }
@@ -58,7 +62,6 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
-                // Check camera permission
                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                     showQrScanner = true
                 } else {
@@ -82,7 +85,6 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
             )
         }
 
-        // Add contact dialog
         if (scannedNodeId != null) {
             AlertDialog(
                 onDismissRequest = { scannedNodeId = null },
@@ -117,7 +119,6 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
             )
         }
 
-        // Own QR display
         if (showOwnQr) {
             AlertDialog(
                 onDismissRequest = { showOwnQr = false },
@@ -126,7 +127,7 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         val bitmap = remember { BarcodeUtils.generateQrCodeBitmap(ownNodeIdHex) }
                         bitmap?.let {
-                            androidx.compose.foundation.Image(
+                            Image(
                                 bitmap = it.asImageBitmap(),
                                 contentDescription = "QR Code",
                                 modifier = Modifier.size(200.dp)
@@ -155,7 +156,6 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
                             Text(contact.nodeIdHex, style = MaterialTheme.typography.bodySmall)
                         }
                         TextButton(onClick = {
-                            // Delete contact
                             repository.deleteContact(contact.nodeIdHex)
                             contacts = repository.loadContacts()
                         }) {
@@ -179,7 +179,6 @@ fun QrCodeScanner(
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
     var analyzedBarcodes = remember { mutableSetOf<String>() }
 
-    // Use camera analysis
     val executor = remember { Executors.newSingleThreadExecutor() }
 
     DisposableEffect(Unit) {
@@ -192,20 +191,27 @@ fun QrCodeScanner(
             .build()
             .also { analysis ->
                 analysis.setAnalyzer(executor) { imageProxy ->
-                    val mediaImage = imageProxy.image
-                    if (mediaImage != null) {
-                        val planes = mediaImage.planes
-                        val buffer = planes[0].buffer
-                        val bytes = ByteArray(buffer.remaining())
-                        buffer.get(bytes)
-                        // Use ZXing to decode QR
-                        val source = com.google.zxing.RGBLuminanceSource(imageProxy.width, imageProxy.height, bytes)
-                        val binarizer = com.google.zxing.common.HybridBinarizer(source)
-                        val binaryBitmap = com.google.zxing.BinaryBitmap(binarizer)
+                    val planes = imageProxy.planes
+                    if (planes.isNotEmpty()) {
+                        val yPlane = planes[0].buffer
+                        val ySize = yPlane.remaining()
+                        val yData = ByteArray(ySize)
+                        yPlane.get(yData)
+
+                        val source = PlanarYUVLuminanceSource(
+                            yData,
+                            imageProxy.width,
+                            imageProxy.height,
+                            0, 0,
+                            imageProxy.width,
+                            imageProxy.height,
+                            false
+                        )
+                        val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
                         val reader = QRCodeReader()
                         try {
                             val result = reader.decode(binaryBitmap)
-                            if (result != null && result.text.isNotEmpty() && !analyzedBarcodes.contains(result.text)) {
+                            if (result != null && !analyzedBarcodes.contains(result.text)) {
                                 analyzedBarcodes.add(result.text)
                                 onCodeScanned(result.text)
                             }
