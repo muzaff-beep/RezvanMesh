@@ -143,12 +143,10 @@ class RezvanRadioService : Service() {
                             radioController?.startBleAdvertising(action.data, 1000)
                         }
                         is Action.SendBlePacket -> {
-                            // Resolve MAC if possible
                             val macHex = resolveMacForNodeIdBytes(action.mac)
                             if (macHex != null && macHex != "FF:FF:FF:FF:FF:FF") {
                                 radioController?.sendBlePacket(macHex, action.data)
                             } else {
-                                // Broadcast fallback
                                 radioController?.sendBroadcastPacket(action.data)
                             }
                         }
@@ -162,10 +160,6 @@ class RezvanRadioService : Service() {
         }
     }
 
-    /**
-     * Converts a 6-byte MAC array to a hex string like "AA:BB:CC:DD:EE:FF".
-     * If the MAC is all 0xFF, returns the broadcast marker.
-     */
     private fun resolveMacForNodeIdBytes(macBytes: ByteArray): String? {
         if (macBytes.size != 6) return null
         val hex = macBytes.joinToString(":") { "%02x".format(it) }.uppercase()
@@ -173,9 +167,6 @@ class RezvanRadioService : Service() {
         return hex
     }
 
-    /**
-     * Called when a BLE advertisement or GATT write arrives.
-     */
     fun onPacketReceived(data: ByteArray, rssi: Int) {
         serviceScope.launch {
             val result = engine?.processIncoming(data, rssi, System.currentTimeMillis())
@@ -222,9 +213,6 @@ class RezvanRadioService : Service() {
         }
     }
 
-    /**
-     * Look up the MAC address for a NodeId from the radio controller's advertisement cache.
-     */
     fun getMacForNodeId(nodeIdHex: String): String? {
         return radioController?.getMacForNodeId(nodeIdHex)
     }
