@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/screens/ChatDetailScreen.kt
+
 package com.rezvani.mesh.ui.screens
 
 import androidx.compose.foundation.layout.*
@@ -36,7 +38,7 @@ fun ChatDetailScreen(
     onNavigateBack: () -> Unit,
     viewModel: ChatDetailViewModel = viewModel()
 ) {
-    val messages by viewModel.getMessages(conversationId).collectAsState(initial = emptyList())
+    val messages by viewModel.messages.collectAsState(initial = emptyList())
     val isSending by viewModel.isSending.collectAsState()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -115,10 +117,7 @@ fun ChatDetailScreen(
                         onClick = {
                             if (messageText.isNotBlank() && !isSending) {
                                 coroutineScope.launch {
-                                    viewModel.sendTextMessage(
-                                        conversationId = conversationId,
-                                        text = messageText
-                                    )
+                                    viewModel.sendMessage(conversationId, messageText)
                                     messageText = ""
                                 }
                             }
