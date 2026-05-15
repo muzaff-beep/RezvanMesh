@@ -14,7 +14,6 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.rezvani.mesh.MeshServiceConnection
-import com.rezvani.mesh.R
 import com.rezvani.mesh.backup.IdentityBackupHelper
 import com.rezvani.mesh.utils.DiagLogger
 import kotlinx.coroutines.*
@@ -85,7 +84,6 @@ class RezvanRadioService : Service() {
             .setContentTitle("Rezvan Mesh active")
             .setContentText("Scanning & advertising")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
-
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .build()
@@ -145,22 +143,8 @@ class RezvanRadioService : Service() {
                     val result = withContext(Dispatchers.IO) {
                         com.rezvani.mesh.MeshCore.nativeTick(enginePtr)
                     }
-                    if (result != null && result.size >= 1) {
-                        val actionCount = result[0].toInt() and 0xFF
-                        var offset = 1
-                        for (i in 0 until actionCount) {
-                            if (offset + 3 > result.size) break
-                            val actionType = result[offset].toInt() and 0xFF
-                            val payloadLen = ((result[offset + 1].toInt() and 0xFF) shl 8) or (result[offset + 2].toInt() and 0xFF)
-                            offset += 3
-                            if (offset + payloadLen > result.size) break
-                            val payload = result.copyOfRange(offset, offset + payloadLen)
-                            offset += payloadLen
-                            when (actionType) {
-                                0x01 -> radioController?.startBleAdvertising(payload, 1000)
-                                0x03 -> radioController?.sendBroadcastPacket(payload)
-                            }
-                        }
+                    if (result != null) {
+                        radioController?.let { ActionDispatcher.dispatch(result, it) }
                     }
                 } catch (e: Exception) {
                     DiagLogger.err("SERVICE", "Tick error: ${e.message}", e)
