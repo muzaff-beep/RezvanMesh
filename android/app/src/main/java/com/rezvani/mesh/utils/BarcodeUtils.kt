@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/utils/BarcodeUtils.kt
+
 package com.rezvani.mesh.utils
 
 import android.graphics.Bitmap
@@ -10,6 +12,7 @@ import com.google.zxing.qrcode.QRCodeWriter
 object BarcodeUtils {
 
     fun generateQrCodeBitmap(text: String, size: Int = 512): Bitmap? {
+        if (text.isEmpty()) return null
         val writer = QRCodeWriter()
         return try {
             val bitMatrix: BitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, size, size)
