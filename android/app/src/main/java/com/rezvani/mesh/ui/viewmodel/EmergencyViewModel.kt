@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/viewmodel/EmergencyViewModel.kt
+
 package com.rezvani.mesh.ui.viewmodel
 
 import android.app.Application
@@ -23,15 +25,10 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Sending)
             try {
-                val broadcastId = ByteArray(8) { 0xFF.toByte() }
                 val messageText = "EMERGENCY LEVEL ${_uiState.value.selectedSeverity}"
-                val success = MeshServiceConnection.sendTextMessage(broadcastId, messageText)
+                MeshServiceConnection.activeService?.sendBroadcast(messageText.toByteArray())
                 delay(1000)
-                if (success) {
-                    _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Success("Alert sent"))
-                } else {
-                    _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Failed("Send failed"))
-                }
+                _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Success("Alert sent"))
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Failed(e.message ?: "Unknown error"))
             }
