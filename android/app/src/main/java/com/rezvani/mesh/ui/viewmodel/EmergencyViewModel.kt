@@ -25,8 +25,10 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Sending)
             try {
+                // Broadcast to ALL nodes – use the special broadcast ID
+                val broadcastId = ByteArray(8) { 0xFF.toByte() }
                 val messageText = "EMERGENCY LEVEL ${_uiState.value.selectedSeverity}"
-                MeshServiceConnection.activeService?.sendBroadcast(messageText.toByteArray())
+                MeshServiceConnection.activeService?.sendMessage(broadcastId, messageText.toByteArray())
                 delay(1000)
                 _uiState.value = _uiState.value.copy(sendStatus = EmergencySendStatus.Success("Alert sent"))
             } catch (e: Exception) {
