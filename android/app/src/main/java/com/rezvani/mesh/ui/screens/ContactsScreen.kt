@@ -29,7 +29,7 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
     var manualNodeId by remember { mutableStateOf("") }
 
     val ownNodeIdHex = remember {
-        meshConnection.activeService?.ownNodeId?.joinToString("") { "%02x".format(it) } ?: ""
+        MeshServiceConnection.activeService?.ownNodeId?.joinToString("") { "%02x".format(it) } ?: ""
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
