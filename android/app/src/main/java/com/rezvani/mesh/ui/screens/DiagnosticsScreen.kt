@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/screens/DiagnosticsScreen.kt
+
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.rezvani.mesh.ui.screens
 
