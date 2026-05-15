@@ -38,7 +38,14 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { showOwnQr = true }) {
+            Button(
+                onClick = {
+                    if (ownNodeIdHex.isNotBlank()) {
+                        showOwnQr = true
+                    }
+                },
+                enabled = ownNodeIdHex.isNotBlank()
+            ) {
                 Text("My QR")
             }
             Button(onClick = { showManualAdd = true }) {
@@ -85,19 +92,23 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
             )
         }
 
-        if (showOwnQr) {
+        if (showOwnQr && ownNodeIdHex.isNotBlank()) {
             AlertDialog(
                 onDismissRequest = { showOwnQr = false },
                 title = { Text("Your Mesh ID") },
                 text = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val bitmap = remember { BarcodeUtils.generateQrCodeBitmap(ownNodeIdHex) }
-                        bitmap?.let {
+                        val bitmap = remember(ownNodeIdHex) {
+                            BarcodeUtils.generateQrCodeBitmap(ownNodeIdHex)
+                        }
+                        if (bitmap != null) {
                             Image(
-                                bitmap = it.asImageBitmap(),
+                                bitmap = bitmap.asImageBitmap(),
                                 contentDescription = "QR Code",
                                 modifier = Modifier.size(200.dp)
                             )
+                        } else {
+                            Text("Unable to generate QR code")
                         }
                         Text(ownNodeIdHex, style = MaterialTheme.typography.bodySmall)
                     }
