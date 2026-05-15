@@ -149,8 +149,10 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             startWifiServer()
         }
         startHeartbeat()
-        startGattServer()
         context.registerReceiver(btStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        if (bluetoothAdapter?.isEnabled == true) {
+            startGattServer()
+        }
     }
 
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
@@ -330,22 +332,26 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         try {
             gattServer?.close()
         } catch (_: Throwable) {}
-        gattServer = bluetoothManager.openGattServer(context, gattServerCallback)
-        val service = BluetoothGattService(MESH_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-        val writeChar = BluetoothGattCharacteristic(
-            MESH_CHARACTERISTIC_WRITE_UUID,
-            BluetoothGattCharacteristic.PROPERTY_WRITE,
-            BluetoothGattCharacteristic.PERMISSION_WRITE
-        )
-        service.addCharacteristic(writeChar)
-        val notifyChar = BluetoothGattCharacteristic(
-            MESH_CHARACTERISTIC_NOTIFY_UUID,
-            BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_READ
-        )
-        service.addCharacteristic(notifyChar)
-        gattServer?.addService(service)
-        DiagLogger.ble("GATT server started")
+        try {
+            gattServer = bluetoothManager.openGattServer(context, gattServerCallback)
+            val service = BluetoothGattService(MESH_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+            val writeChar = BluetoothGattCharacteristic(
+                MESH_CHARACTERISTIC_WRITE_UUID,
+                BluetoothGattCharacteristic.PROPERTY_WRITE,
+                BluetoothGattCharacteristic.PERMISSION_WRITE
+            )
+            service.addCharacteristic(writeChar)
+            val notifyChar = BluetoothGattCharacteristic(
+                MESH_CHARACTERISTIC_NOTIFY_UUID,
+                BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                BluetoothGattCharacteristic.PERMISSION_READ
+            )
+            service.addCharacteristic(notifyChar)
+            gattServer?.addService(service)
+            DiagLogger.ble("GATT server started")
+        } catch (e: Exception) {
+            DiagLogger.err("BLE", "GATT server start failed: ${e.message}", e)
+        }
     }
 
     private val gattServerCallback = object : BluetoothGattServerCallback() {
