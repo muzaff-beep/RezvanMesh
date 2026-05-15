@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/viewmodel/DiagnosticsViewModel.kt
+
 package com.rezvani.mesh.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -62,7 +64,6 @@ class DiagnosticsViewModel : ViewModel() {
     }
 
     fun showRoutingTable() {
-        // Placeholder – will dump routing info from native
         _uiState.value = _uiState.value.copy(routingStatus = TestStatus.PASS, outputText = "Routing table: (not yet wired to native)")
     }
 
@@ -71,7 +72,7 @@ class DiagnosticsViewModel : ViewModel() {
         val ogm = ByteArray(62)
         ogm[0] = 0x01; ogm[1] = 0x01; ogm[2] = 0x0A
         System.arraycopy(id, 0, ogm, 3, 8)
-        ogm[11] = 0x01; ogm[10] = 0x00; ogm[11] = 0x32
+        ogm[10] = 0x00; ogm[11] = 0x32
         ogm[18] = 200.toByte(); ogm[22] = 0x01
         return ogm
     }
