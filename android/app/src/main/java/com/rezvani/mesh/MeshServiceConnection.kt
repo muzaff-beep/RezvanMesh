@@ -13,9 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 
 class MeshServiceConnection(private val context: Context) : ServiceConnection {
 
-    var activeService: RezvanRadioService? = null
-        private set
-
     private val _receivedMessages = MutableStateFlow<List<DecryptedMessage>>(emptyList())
     val receivedMessages: StateFlow<List<DecryptedMessage>> = _receivedMessages
 
@@ -24,12 +21,16 @@ class MeshServiceConnection(private val context: Context) : ServiceConnection {
         val signalStrength = MutableStateFlow("-68 dBm")
         val isServiceConnected = MutableStateFlow(false)
         val meshCorePtr = MutableStateFlow<Long?>(null)
+        var activeService: RezvanRadioService? = null
+            private set
 
         fun onServiceConnected(service: RezvanRadioService) {
+            activeService = service
             isServiceConnected.value = true
         }
 
         fun onServiceDisconnected() {
+            activeService = null
             isServiceConnected.value = false
         }
     }
