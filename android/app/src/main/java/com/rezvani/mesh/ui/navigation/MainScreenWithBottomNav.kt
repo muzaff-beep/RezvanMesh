@@ -18,8 +18,9 @@ import com.rezvani.mesh.MeshServiceConnection
 
 @Composable
 fun MainScreenWithBottomNav() {
+    val context = LocalContext.current
     val navController = rememberNavController()
-    val meshConnection = remember { MeshServiceConnection(LocalContext.current) }
+    val meshConnection = remember { MeshServiceConnection(context) }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
