@@ -84,7 +84,8 @@ class RezvanRadioService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Rezvan Mesh active")
             .setContentText("Scanning & advertising")
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(android.R.drawable.ic_menu_compass)
+
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .build()
