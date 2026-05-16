@@ -232,6 +232,11 @@ class RezvanRadioService : Service() {
         }
     }
 
+    fun sendVoiceBroadcast(packet: ByteArray) {
+        DiagLogger.ble("Voice broadcast sending, size=${packet.size}")
+        radioController?.sendBroadcastPacket(packet)
+    }
+
     fun dequeuePendingPackets(address: String): List<ByteArray> {
         return pendingPackets.remove(address)?.toList() ?: emptyList()
     }
