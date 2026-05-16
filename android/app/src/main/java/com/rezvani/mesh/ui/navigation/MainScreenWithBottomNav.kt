@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -44,6 +45,12 @@ fun MainScreenWithBottomNav() {
                     label = { Text("Contacts") },
                     selected = currentRoute == "contacts",
                     onClick = { navController.navigate("contacts") { popUpTo("status") { inclusive = false } } }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Filled.Warning, contentDescription = "Emergency") },
+                    label = { Text("SOS") },
+                    selected = currentRoute == "emergency",
+                    onClick = { navController.navigate("emergency") { popUpTo("status") { inclusive = false } } }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = "Settings") },
