@@ -247,7 +247,7 @@ fun StatusScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            itemsIndexed(filteredLogs) { _, line ->
+            itemsIndexed(filteredLogs, key = { index, _ -> index }) { _, line ->
                 Text(
                     text = line,
                     style = MaterialTheme.typography.bodySmall,
