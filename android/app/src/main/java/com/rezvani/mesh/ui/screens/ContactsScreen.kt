@@ -22,7 +22,7 @@ import com.rezvani.mesh.utils.BarcodeUtils
 fun ContactsScreen(meshConnection: MeshServiceConnection) {
     val context = LocalContext.current
     val repository = remember { ContactsRepository(context) }
-    var contacts by remember { mutableStateOf(repository.loadContacts()) }
+    val contacts by repository.contacts.collectAsState()
     var showOwnQr by remember { mutableStateOf(false) }
     var showManualAdd by remember { mutableStateOf(false) }
     var newContactName by remember { mutableStateOf("") }
@@ -39,11 +39,7 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = {
-                    if (ownNodeIdHex.isNotBlank()) {
-                        showOwnQr = true
-                    }
-                },
+                onClick = { if (ownNodeIdHex.isNotBlank()) showOwnQr = true },
                 enabled = ownNodeIdHex.isNotBlank()
             ) {
                 Text("My QR")
@@ -75,7 +71,6 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
                     Button(onClick = {
                         if (newContactName.isNotBlank() && manualNodeId.length == 16) {
                             repository.addContact(Contact(newContactName, manualNodeId))
-                            contacts = repository.loadContacts()
                             newContactName = ""
                             manualNodeId = ""
                             showManualAdd = false
@@ -125,7 +120,7 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
 
         Text("Saved Contacts:", style = MaterialTheme.typography.titleMedium)
         LazyColumn {
-            items(contacts) { contact ->
+            items(contacts, key = { it.nodeIdHex }) { contact ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
@@ -134,7 +129,6 @@ fun ContactsScreen(meshConnection: MeshServiceConnection) {
                         }
                         TextButton(onClick = {
                             repository.deleteContact(contact.nodeIdHex)
-                            contacts = repository.loadContacts()
                         }) {
                             Text("Delete")
                         }
