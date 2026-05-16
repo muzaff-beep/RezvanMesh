@@ -37,20 +37,23 @@ class MainActivity : ComponentActivity() {
     private val PERMISSION_LOCAL_MAC_ADDRESS = "android.permission.LOCAL_MAC_ADDRESS"
     private val REQUEST_WRITE_SETTINGS = 1001
 
+    // Track whether the service has been started so we don't start it twice
+    private var serviceStarted = false
+
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) Log.i(TAG, "Location permission granted")
         else Log.w(TAG, "Location permission denied – Wi‑Fi Direct disabled")
-        startRadioServiceIfReady()
+        tryStartRadioService()
     }
 
-    private val bluetoothScanPermissionLauncher = registerForActivityResult(
+    private val bluetoothPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) Log.i(TAG, "Bluetooth scan permission granted")
-        else Log.w(TAG, "Bluetooth scan permission denied – BLE scanning disabled")
-        startRadioServiceIfReady()
+        if (isGranted) Log.i(TAG, "Bluetooth permission granted")
+        else Log.w(TAG, "Bluetooth permission denied – BLE features disabled")
+        tryStartRadioService()
     }
 
     private val macPermissionLauncher = registerForActivityResult(
@@ -103,7 +106,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 DiagLogger.log(this@MainActivity, "ERROR: Seed missing after save!")
             }
-            startRadioServiceIfReady()
+            tryStartRadioService()
         }
 
         val prefs = getSharedPreferences("rezvan_settings", Context.MODE_PRIVATE)
@@ -137,8 +140,10 @@ class MainActivity : ComponentActivity() {
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (!hasBluetoothScanPermission()) {
-                bluetoothScanPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
+            if (!hasBluetoothPermission()) {
+                // Request BLUETOOTH_SCAN – on API 31+ this also grants
+                // BLUETOOTH_ADVERTISE and BLUETOOTH_CONNECT (same permission group).
+                bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_SCAN)
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasMacPermission()) {
@@ -149,11 +154,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startRadioServiceIfReady() {
+    /**
+     * Starts the radio service only when all required permissions are granted and a seed exists.
+     * Safe to call multiple times – it will only start the service once.
+     */
+    private fun tryStartRadioService() {
+        if (serviceStarted) return
         val seed = IdentityBackupHelper.loadSeed(this)
-        if (seed != null && hasLocationPermission()) {
-            startRadioService()
+        if (seed == null) {
+            DiagLogger.log(this, "Service start deferred: no identity seed yet")
+            return
         }
+        if (!hasAllRadioPermissions()) {
+            DiagLogger.log(this, "Service start deferred: waiting for permissions")
+            return
+        }
+        serviceStarted = true
+        startRadioService()
     }
 
     private fun startRadioService() {
@@ -163,14 +180,16 @@ class MainActivity : ComponentActivity() {
             bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start radio service", e)
+            serviceStarted = false
         }
     }
 
-    private fun unbindRadioService() {
-        if (isServiceBound.value) {
-            try { unbindService(serviceConnection) } catch (_: Exception) {}
-            isServiceBound.value = false
+    private fun hasAllRadioPermissions(): Boolean {
+        if (!hasLocationPermission()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!hasBluetoothPermission()) return false
         }
+        return true
     }
 
     private fun hasLocationPermission(): Boolean {
@@ -179,7 +198,7 @@ class MainActivity : ComponentActivity() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun hasBluetoothScanPermission(): Boolean {
+    private fun hasBluetoothPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this, Manifest.permission.BLUETOOTH_SCAN
         ) == PackageManager.PERMISSION_GRANTED
