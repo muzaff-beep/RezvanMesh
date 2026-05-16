@@ -42,7 +42,6 @@ fun EmergencyScreen(
 
         EmergencyButton(
             onClick = { viewModel.sendEmergencyAlert() },
-            enabled = uiState.sendStatus !is EmergencySendStatus.Sending,
             modifier = Modifier.fillMaxWidth()
         )
 
