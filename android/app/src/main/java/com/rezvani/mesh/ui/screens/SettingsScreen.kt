@@ -1,5 +1,8 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/screens/SettingsScreen.kt
+
 package com.rezvani.mesh.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,7 +19,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import com.rezvani.mesh.R
 import com.rezvani.mesh.ui.components.ConfirmationDialog
 import com.rezvani.mesh.ui.components.PowerState
@@ -39,6 +41,10 @@ fun SettingsScreen(
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showCrashInfoDialog by remember { mutableStateOf(false) }
+    var showRetentionDialog by remember { mutableStateOf(false) }
+
+    val prefs = remember { context.getSharedPreferences("voice_prefs", Context.MODE_PRIVATE) }
+    var retentionHours by remember { mutableStateOf(prefs.getInt("voice_log_retention_hours", 12)) }
 
     Scaffold(
         topBar = {
@@ -61,6 +67,7 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
+            // ---- Identity ----
             SettingsSection(title = stringResource(R.string.identity)) {
                 SettingsItem(
                     icon = Icons.Default.Person,
@@ -71,6 +78,7 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+            // ---- Appearance ----
             SettingsSection(title = stringResource(R.string.appearance)) {
                 SettingsItem(
                     icon = Icons.Default.DarkMode,
@@ -91,6 +99,7 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+            // ---- Power & Battery ----
             SettingsSection(title = stringResource(R.string.power_battery)) {
                 SettingsItem(
                     icon = Icons.Default.BatteryStd,
@@ -124,7 +133,7 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-            // ---- Diagnostics entry ----
+            // ---- Developer ----
             SettingsSection(title = "Developer") {
                 SettingsItem(
                     icon = Icons.Default.Build,
@@ -136,6 +145,26 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+            // ---- Voice Broadcast ----
+            SettingsSection(title = "Voice Broadcast") {
+                SettingsItem(
+                    icon = Icons.Default.Timer,
+                    title = "Voice Log Retention",
+                    subtitle = when (retentionHours) {
+                        0 -> "No logging"
+                        1 -> "1 hour"
+                        6 -> "6 hours"
+                        12 -> "12 hours (default)"
+                        24 -> "24 hours"
+                        else -> "$retentionHours hours"
+                    },
+                    onClick = { showRetentionDialog = true }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+            // ---- Storage ----
             SettingsSection(title = stringResource(R.string.storage)) {
                 SettingsItem(
                     icon = Icons.Default.Storage,
@@ -153,6 +182,7 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+            // ---- About ----
             SettingsSection(title = stringResource(R.string.about)) {
                 SettingsItem(
                     icon = Icons.Default.Info,
@@ -175,7 +205,53 @@ fun SettingsScreen(
         }
     }
 
-    // Language dialog
+    // ---- Retention Dialog ----
+    if (showRetentionDialog) {
+        AlertDialog(
+            onDismissRequest = { showRetentionDialog = false },
+            title = { Text("Voice Log Retention") },
+            text = {
+                Column {
+                    listOf(0, 1, 6, 12, 24).forEach { hours ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    prefs.edit().putInt("voice_log_retention_hours", hours).apply()
+                                    retentionHours = hours
+                                    showRetentionDialog = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = retentionHours == hours,
+                                onClick = null
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = when (hours) {
+                                    0 -> "No logging"
+                                    1 -> "1 hour"
+                                    6 -> "6 hours"
+                                    12 -> "12 hours (default)"
+                                    24 -> "24 hours"
+                                    else -> "$hours hours"
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRetentionDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // ---- Language Dialog ----
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
@@ -210,7 +286,7 @@ fun SettingsScreen(
         )
     }
 
-    // Power profile dialog
+    // ---- Power Profile Dialog ----
     if (showPowerDialog) {
         AlertDialog(
             onDismissRequest = { showPowerDialog = false },
@@ -274,7 +350,7 @@ fun SettingsScreen(
         )
     }
 
-    // Clear data confirmation
+    // ---- Clear Data Confirmation ----
     if (showClearDataDialog) {
         ConfirmationDialog(
             title = stringResource(R.string.clear_old_messages),
@@ -290,7 +366,7 @@ fun SettingsScreen(
         )
     }
 
-    // About dialog
+    // ---- About Dialog ----
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
@@ -315,7 +391,7 @@ fun SettingsScreen(
         )
     }
 
-    // Crash log info dialog
+    // ---- Crash Log Info Dialog ----
     if (showCrashInfoDialog) {
         AlertDialog(
             onDismissRequest = { showCrashInfoDialog = false },
