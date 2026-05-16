@@ -20,19 +20,12 @@ fun MessagesScreen(meshConnection: MeshServiceConnection) {
     val messages by meshConnection.receivedMessages.collectAsState()
     val context = LocalContext.current
     val repository = remember { ContactsRepository(context) }
-    val contacts = remember { repository.loadContacts() }
+    val contacts by repository.contacts.collectAsState()
     var selectedContact by remember { mutableStateOf<Contact?>(null) }
     var text by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Mesh Messages", style = MaterialTheme.typography.headlineMedium)
-
-        Button(onClick = {
-            meshConnection.sendEmergencyBroadcast("EMERGENCY: ${text.ifEmpty { "Mayday" }}")
-            text = ""
-        }) {
-            Text("Send Emergency Broadcast")
-        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -88,7 +81,7 @@ fun MessagesScreen(meshConnection: MeshServiceConnection) {
         Spacer(modifier = Modifier.height(12.dp))
         Text("Received:", style = MaterialTheme.typography.titleMedium)
         LazyColumn {
-            items(messages) { msg ->
+            items(messages, key = { "${it.senderId.joinToString("")}${it.timestamp}" }) { msg ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(modifier = Modifier.padding(8.dp)) {
                         Text("From: ${msg.senderId.joinToString("") { "%02x".format(it) }}")
