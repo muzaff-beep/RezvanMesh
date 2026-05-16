@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/screens/StatusScreen.kt
+
 package com.rezvani.mesh.ui.screens
 
 import android.content.Context
@@ -36,6 +38,9 @@ import java.util.*
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun StatusScreen(
+    onNavigateToMessages: () -> Unit = {},
+    onNavigateToContacts: () -> Unit = {},
+    onNavigateToDiagnostics: () -> Unit = {},
     viewModel: StatusViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -61,6 +66,24 @@ fun StatusScreen(
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(24.dp))
+
+        // Quick Navigation Buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(onClick = onNavigateToMessages, modifier = Modifier.weight(1f)) {
+                Text("Messages")
+            }
+            Button(onClick = onNavigateToContacts, modifier = Modifier.weight(1f)) {
+                Text("Contacts")
+            }
+            Button(onClick = onNavigateToDiagnostics, modifier = Modifier.weight(1f)) {
+                Text("Diag")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Build provenance banner
         Card(
