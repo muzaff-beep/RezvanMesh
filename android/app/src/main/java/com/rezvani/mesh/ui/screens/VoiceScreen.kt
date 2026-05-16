@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/ui/screens/VoiceScreen.kt
+
 package com.rezvani.mesh.ui.screens
 
 import android.Manifest
@@ -14,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rezvani.mesh.ui.components.SeverityPicker
 import com.rezvani.mesh.ui.viewmodel.VoiceViewModel
 import com.rezvani.mesh.ui.viewmodel.VoiceUiState
 
@@ -24,7 +27,6 @@ fun VoiceScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
-    // Permission launcher for RECORD_AUDIO
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -48,7 +50,6 @@ fun VoiceScreen(
             fontWeight = FontWeight.Bold
         )
 
-        // Reception toggle
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -60,7 +61,6 @@ fun VoiceScreen(
             )
         }
 
-        // Severity selector (same names as Emergency screen)
         SeverityPicker(
             selectedLevel = uiState.severityLevel,
             onLevelSelected = { viewModel.setSeverity(it) },
@@ -69,13 +69,11 @@ fun VoiceScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Push-to-Talk button
         Button(
             onClick = {
                 if (uiState.isRecording) {
                     viewModel.stopRecording()
                 } else {
-                    // Check permission first
                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                         viewModel.startRecording()
                     } else {
@@ -109,13 +107,13 @@ fun VoiceScreen(
             }
         }
 
-        // Status text
-        when (uiState.status) {
+        val status = uiState.status
+        when (status) {
             is VoiceUiState.Status.Ready -> {}
             is VoiceUiState.Status.Recording -> Text("Recording…", color = MaterialTheme.colorScheme.error)
             is VoiceUiState.Status.Sending -> Text("Sending…")
             is VoiceUiState.Status.Sent -> Text("Sent", color = MaterialTheme.colorScheme.primary)
-            is VoiceUiState.Status.Error -> Text(uiState.status.message, color = MaterialTheme.colorScheme.error)
+            is VoiceUiState.Status.Error -> Text(status.message, color = MaterialTheme.colorScheme.error)
         }
     }
 }
