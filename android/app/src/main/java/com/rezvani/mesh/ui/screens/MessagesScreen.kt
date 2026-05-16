@@ -1,5 +1,3 @@
-// android/app/src/main/java/com/rezvani/mesh/ui/screens/MessagesScreen.kt
-
 package com.rezvani.mesh.ui.screens
 
 import androidx.compose.foundation.layout.*
