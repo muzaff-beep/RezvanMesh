@@ -8,12 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.rezvani.mesh.MeshServiceConnection
-import com.rezvani.mesh.ui.screens.ContactsScreen
-import com.rezvani.mesh.ui.screens.DiagnosticsScreen
-import com.rezvani.mesh.ui.screens.EmergencyScreen
-import com.rezvani.mesh.ui.screens.MessagesScreen
-import com.rezvani.mesh.ui.screens.SettingsScreen
-import com.rezvani.mesh.ui.screens.StatusScreen
+import com.rezvani.mesh.ui.screens.*
 
 @Composable
 fun NavGraph(
@@ -27,7 +22,11 @@ fun NavGraph(
         modifier = modifier
     ) {
         composable("status") {
-            StatusScreen()
+            StatusScreen(
+                onNavigateToMessages = { navController.navigate("messages") },
+                onNavigateToContacts = { navController.navigate("contacts") },
+                onNavigateToDiagnostics = { navController.navigate("diagnostics") }
+            )
         }
         composable("messages") {
             MessagesScreen(meshConnection)
@@ -37,6 +36,9 @@ fun NavGraph(
         }
         composable("emergency") {
             EmergencyScreen()
+        }
+        composable("voice") {
+            VoiceScreen()
         }
         composable("settings") {
             SettingsScreen(onNavigateBack = { navController.popBackStack() })
