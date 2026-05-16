@@ -1,3 +1,5 @@
+// android/app/src/main/java/com/rezvani/mesh/radio/RadioControllerImpl.kt
+
 package com.rezvani.mesh.radio
 
 import android.bluetooth.*
@@ -6,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pManager
@@ -14,6 +17,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.rezvani.mesh.BuildConfig
 import com.rezvani.mesh.utils.DiagLogger
 import java.io.DataInputStream
@@ -99,7 +103,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                 val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                 if (state == BluetoothAdapter.STATE_ON) {
                     DiagLogger.ble("Bluetooth re-enabled, restarting GATT server")
-                    startGattServer()
+                    startGattServerIfPermitted()
                     bleScanner = bluetoothAdapter?.bluetoothLeScanner
                     bleAdvertiser = bluetoothAdapter?.bluetoothLeAdvertiser
                     if (isScanning.get()) {
@@ -148,12 +152,17 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
         startHeartbeat()
         context.registerReceiver(btStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        // GATT server will be started when permissions are granted and Bluetooth is on
         if (bluetoothAdapter?.isEnabled == true) {
-            startGattServer()
+            startGattServerIfPermitted()
         }
     }
 
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
+        if (!hasScanPermission()) {
+            DiagLogger.ble("startBleScan ABORT: missing BLUETOOTH_SCAN permission")
+            return
+        }
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleScan ABORT: BT disabled or null adapter")
             return
@@ -171,7 +180,12 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             .build()
 
         DiagLogger.ble("BLE scan starting – legacy mode, continuous")
-        bleScanner?.startScan(null, settings, scanCallback)
+        try {
+            bleScanner?.startScan(null, settings, scanCallback)
+        } catch (e: SecurityException) {
+            DiagLogger.err("BLE", "Scan start failed: permission missing", e)
+            isScanning.set(false)
+        }
     }
 
     override fun stopBleScan() {
@@ -248,6 +262,10 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     }
 
     override fun startBleAdvertising(adData: ByteArray, intervalMs: Int) {
+        if (!hasAdvertisePermission()) {
+            DiagLogger.ble("startBleAdvertising ABORT: missing BLUETOOTH_ADVERTISE permission")
+            return
+        }
         if (bluetoothAdapter?.isEnabled != true) {
             DiagLogger.ble("startBleAdvertising ABORT: BT disabled")
             return
@@ -325,6 +343,14 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
     }
 
+    private fun startGattServerIfPermitted() {
+        if (!hasScanPermission()) {
+            DiagLogger.ble("GATT server start deferred: BLUETOOTH_SCAN permission missing")
+            return
+        }
+        startGattServer()
+    }
+
     private fun startGattServer() {
         try {
             gattServer?.close()
@@ -349,10 +375,20 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             service.addCharacteristic(notifyChar)
             gattServer?.addService(service)
             DiagLogger.ble("GATT server started")
+        } catch (e: SecurityException) {
+            DiagLogger.err("BLE", "GATT server start failed: permission missing", e)
+        } catch (e: IllegalArgumentException) {
+            DiagLogger.err("BLE", "GATT server start failed: ${e.message} — will retry when Bluetooth restarts", e)
         } catch (e: Exception) {
             DiagLogger.err("BLE", "GATT server start failed: ${e.message}", e)
         }
     }
+
+    private fun hasScanPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasAdvertisePermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
 
     private val gattServerCallback = object : BluetoothGattServerCallback() {
         override fun onCharacteristicWriteRequest(
@@ -452,34 +488,4 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private fun stopWifiServer() {}
 
     override fun getCurrentRssi(peerMacAddress: String) = Int.MIN_VALUE
-    override fun setBleTxPower(dbm: Int) {}
-    override fun setWifiTxPower(dbm: Int) {}
-
-    private fun startHeartbeat() {
-        heartbeatHandler.removeCallbacks(heartbeatRunnable)
-        heartbeatHandler.postDelayed(heartbeatRunnable, 10_000L)
-    }
-
-    private fun stopHeartbeat() {
-        heartbeatHandler.removeCallbacks(heartbeatRunnable)
-    }
-
-    override fun onDestroy() {
-        stopHeartbeat()
-        stopBleScan()
-        stopBleAdvertising()
-        bleGattMap.values.forEach { it.close() }
-        gattServer?.close()
-        try { context.unregisterReceiver(btStateReceiver) } catch (_: Throwable) {}
-        DiagLogger.ble("RadioController destroyed")
-    }
-
-    companion object {
-        private const val TAG = "RadioControllerImpl"
-        private const val MANUFACTURER_ID = 0xFFFF
-        private const val NODE_ID_OFFSET = 3
-        private const val NODE_ID_LEN = 8
-        private val BLE_SERVICE_UUID = ParcelUuid(UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb"))
-        const val WIFI_PORT = 4237
-    }
-}
+    override fun setBleTxP
