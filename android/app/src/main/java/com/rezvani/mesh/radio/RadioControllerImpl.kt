@@ -1,5 +1,3 @@
-// android/app/src/main/java/com/rezvani/mesh/radio/RadioControllerImpl.kt
-
 package com.rezvani.mesh.radio
 
 import android.bluetooth.*
@@ -280,7 +278,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         val data = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
             .addManufacturerData(MANUFACTURER_ID, truncated)
-            .addServiceUuid(ParcelUuid(MESH_SERVICE_UUID))
             .build()
 
         try {
@@ -333,7 +330,10 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             gattServer?.close()
         } catch (_: Throwable) {}
         try {
-            gattServer = bluetoothManager.openGattServer(context, gattServerCallback)
+            gattServer = bluetoothManager.openGattServer(
+                context.applicationContext,
+                gattServerCallback
+            )
             val service = BluetoothGattService(MESH_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
             val writeChar = BluetoothGattCharacteristic(
                 MESH_CHARACTERISTIC_WRITE_UUID,
