@@ -4,11 +4,7 @@ package com.rezvani.mesh.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Contacts
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -35,34 +31,22 @@ fun MainScreenWithBottomNav() {
                     onClick = { navController.navigate("status") { popUpTo("status") { inclusive = true } } }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Filled.Chat, contentDescription = "Messages") },
-                    label = { Text("Messages") },
-                    selected = currentRoute == "messages",
-                    onClick = { navController.navigate("messages") { popUpTo("status") { inclusive = false } } }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Filled.Contacts, contentDescription = "Contacts") },
-                    label = { Text("Contacts") },
-                    selected = currentRoute == "contacts",
-                    onClick = { navController.navigate("contacts") { popUpTo("status") { inclusive = false } } }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Filled.Warning, contentDescription = "Emergency") },
+                    icon = { Icon(Icons.Filled.Warning, contentDescription = "SOS") },
                     label = { Text("SOS") },
                     selected = currentRoute == "emergency",
                     onClick = { navController.navigate("emergency") { popUpTo("status") { inclusive = false } } }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Filled.Mic, contentDescription = "PTT") },
+                    label = { Text("PTT") },
+                    selected = currentRoute == "voice",
+                    onClick = { navController.navigate("voice") { popUpTo("status") { inclusive = false } } }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = "Settings") },
                     label = { Text("Settings") },
                     selected = currentRoute == "settings",
                     onClick = { navController.navigate("settings") { popUpTo("status") { inclusive = false } } }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Filled.Build, contentDescription = "Diagnostics") },
-                    label = { Text("Diag") },
-                    selected = currentRoute == "diagnostics",
-                    onClick = { navController.navigate("diagnostics") { popUpTo("status") { inclusive = false } } }
                 )
             }
         }
