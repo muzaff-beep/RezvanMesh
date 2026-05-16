@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import com.rezvani.mesh.MeshServiceConnection
 import com.rezvani.mesh.ui.screens.ContactsScreen
 import com.rezvani.mesh.ui.screens.DiagnosticsScreen
+import com.rezvani.mesh.ui.screens.EmergencyScreen
 import com.rezvani.mesh.ui.screens.MessagesScreen
 import com.rezvani.mesh.ui.screens.SettingsScreen
 import com.rezvani.mesh.ui.screens.StatusScreen
@@ -33,6 +34,9 @@ fun NavGraph(
         }
         composable("contacts") {
             ContactsScreen(meshConnection)
+        }
+        composable("emergency") {
+            EmergencyScreen()
         }
         composable("settings") {
             SettingsScreen(onNavigateBack = { navController.popBackStack() })
