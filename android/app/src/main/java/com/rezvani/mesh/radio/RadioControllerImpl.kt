@@ -1,5 +1,3 @@
-// android/app/src/main/java/com/rezvani/mesh/radio/RadioControllerImpl.kt
-
 package com.rezvani.mesh.radio
 
 import android.bluetooth.*
@@ -39,6 +37,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private var bleScanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
     private var bleAdvertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
     private var gattServer: BluetoothGattServer? = null
+    private var gattServerStartAttempted = false
 
     private val bleGattMap = ConcurrentHashMap<String, BluetoothGatt>()
     private val bleSenderMap = ConcurrentHashMap<String, BlePacketSender>()
@@ -51,8 +50,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     private val isAdvertising = AtomicBoolean(false)
     private var advertisingSet: AdvertisingSet? = null
     private var pendingAdvertiseData: ByteArray? = null
-    private var advertiseRetryCount = 0
-    private val maxAdvertiseRetries = 5
 
     private var ownNodeId: ByteArray? = null
 
@@ -110,7 +107,6 @@ class RadioControllerImpl(private val context: Context) : RadioController {
                         startBleScan(1000, 1000)
                     }
                     if (isAdvertising.get() && pendingAdvertiseData != null) {
-                        advertiseRetryCount = 0
                         startLegacyAdvertising(pendingAdvertiseData!!)
                     }
                 }
@@ -152,10 +148,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         }
         startHeartbeat()
         context.registerReceiver(btStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
-        // GATT server will be started when permissions are granted and Bluetooth is on
-        if (bluetoothAdapter?.isEnabled == true) {
-            startGattServerIfPermitted()
-        }
+        // GATT server is deferred to startBleScan or tick – avoids Samsung null-parameter crash
     }
 
     override fun startBleScan(intervalMs: Long, windowMs: Long) {
@@ -170,6 +163,10 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         if (bleScanner == null) {
             DiagLogger.ble("startBleScan ABORT: scanner is null")
             return
+        }
+        // Retry GATT server if it failed earlier (safe context now)
+        if (gattServer == null && !gattServerStartAttempted) {
+            startGattServerIfPermitted()
         }
         if (isScanning.get()) return
         isScanning.set(true)
@@ -204,6 +201,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
             val scanRecord = result.scanRecord ?: return
 
+            // Log only the first few raw advertisements for diagnostic purposes
             if (rawLogLimit.get() > 0) {
                 val mfrData = scanRecord.getManufacturerSpecificData()
                 val ids = mutableListOf<Int>()
@@ -277,12 +275,12 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         if (isAdvertising.get()) return
 
         pendingAdvertiseData = adData
-        advertiseRetryCount = 0
         startLegacyAdvertising(adData)
     }
 
     private fun startLegacyAdvertising(adData: ByteArray) {
-        val truncated = if (adData.size > 27) adData.copyOf(27) else adData
+        // 26 bytes header exactly fits BLE legacy limit (27 is too large)
+        val truncated = if (adData.size > 26) adData.copyOf(26) else adData
         DiagLogger.ble("Legacy adv starting",
             "payload" to truncated.size.toString(),
             "dropped" to (adData.size - truncated.size).toString())
@@ -302,20 +300,8 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             bleAdvertiser?.startAdvertising(settings, data, legacyAdvertiseCallback)
         } catch (t: Throwable) {
             DiagLogger.ble("Legacy startAdvertising threw: ${t.message}")
-            scheduleAdvertiseRetry()
+            // Retry is handled by the periodic tick loop – no extra scheduling
         }
-    }
-
-    private fun scheduleAdvertiseRetry() {
-        if (advertiseRetryCount >= maxAdvertiseRetries) {
-            DiagLogger.ble("Advertising retry limit reached, giving up")
-            return
-        }
-        advertiseRetryCount++
-        DiagLogger.ble("Advertising retry $advertiseRetryCount/$maxAdvertiseRetries in 2s")
-        scanHandler.postDelayed({
-            pendingAdvertiseData?.let { startLegacyAdvertising(it) }
-        }, 2000L)
     }
 
     override fun stopBleAdvertising() {
@@ -332,14 +318,13 @@ class RadioControllerImpl(private val context: Context) : RadioController {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             isAdvertising.set(true)
             txStarts.incrementAndGet()
-            advertiseRetryCount = 0
             DiagLogger.ble("Legacy adv STARTED")
         }
 
         override fun onStartFailure(errorCode: Int) {
             isAdvertising.set(false)
-            DiagLogger.ble("Legacy adv FAILED status=$errorCode")
-            scheduleAdvertiseRetry()
+            DiagLogger.ble("Legacy adv FAILED status=$errorCode – will retry on next tick")
+            // No manual retry here – the tick loop naturally retries every second
         }
     }
 
@@ -348,6 +333,7 @@ class RadioControllerImpl(private val context: Context) : RadioController {
             DiagLogger.ble("GATT server start deferred: BLUETOOTH_SCAN permission missing")
             return
         }
+        gattServerStartAttempted = true
         startGattServer()
     }
 
@@ -493,29 +479,4 @@ class RadioControllerImpl(private val context: Context) : RadioController {
 
     private fun startHeartbeat() {
         heartbeatHandler.removeCallbacks(heartbeatRunnable)
-        heartbeatHandler.postDelayed(heartbeatRunnable, 10_000L)
-    }
-
-    private fun stopHeartbeat() {
-        heartbeatHandler.removeCallbacks(heartbeatRunnable)
-    }
-
-    override fun onDestroy() {
-        stopHeartbeat()
-        stopBleScan()
-        stopBleAdvertising()
-        bleGattMap.values.forEach { it.close() }
-        gattServer?.close()
-        try { context.unregisterReceiver(btStateReceiver) } catch (_: Throwable) {}
-        DiagLogger.ble("RadioController destroyed")
-    }
-
-    companion object {
-        private const val TAG = "RadioControllerImpl"
-        private const val MANUFACTURER_ID = 0xFFFF
-        private const val NODE_ID_OFFSET = 3
-        private const val NODE_ID_LEN = 8
-        private val BLE_SERVICE_UUID = ParcelUuid(UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb"))
-        const val WIFI_PORT = 4237
-    }
-}
+        heartbeatHandler.postDelayed(hea
