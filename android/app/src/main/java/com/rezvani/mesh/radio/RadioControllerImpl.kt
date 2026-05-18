@@ -477,6 +477,31 @@ class RadioControllerImpl(private val context: Context) : RadioController {
     override fun setBleTxPower(dbm: Int) {}
     override fun setWifiTxPower(dbm: Int) {}
 
-    private fun startHeartbeat() {
+        private fun startHeartbeat() {
         heartbeatHandler.removeCallbacks(heartbeatRunnable)
-        heartbeatHandler.postDelayed(hea
+        heartbeatHandler.postDelayed(heartbeatRunnable, 10_000L)
+    }
+
+    private fun stopHeartbeat() {
+        heartbeatHandler.removeCallbacks(heartbeatRunnable)
+    }
+
+    override fun onDestroy() {
+        stopHeartbeat()
+        stopBleScan()
+        stopBleAdvertising()
+        bleGattMap.values.forEach { it.close() }
+        gattServer?.close()
+        try { context.unregisterReceiver(btStateReceiver) } catch (_: Throwable) {}
+        DiagLogger.ble("RadioController destroyed")
+    }
+
+    companion object {
+        private const val TAG = "RadioControllerImpl"
+        private const val MANUFACTURER_ID = 0xFFFF
+        private const val NODE_ID_OFFSET = 3
+        private const val NODE_ID_LEN = 8
+        private val BLE_SERVICE_UUID = ParcelUuid(UUID.fromString("0000a1b2-0000-1000-8000-00805f9b34fb"))
+        const val WIFI_PORT = 4237
+    }
+}
